@@ -154,7 +154,7 @@ function gpbi_render_color_grid($atts)
 	ob_start();
 
 	echo '<section class="gp-style-guide-alt">';
-	echo "<h2>Global Colors</h2>";
+	echo "<h2>Global Color Palette</h2>";
 	echo '<div class="gp-color-grid-alt">';
 
 	if (!empty($global_colors)) {
