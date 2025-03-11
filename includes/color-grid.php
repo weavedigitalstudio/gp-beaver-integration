@@ -58,7 +58,7 @@ function gpbi_render_color_grid($atts)
 	// Parse shortcode attributes
 	$attributes = shortcode_atts(
 		array(
-			'size'    => '100',
+			'size'    => '190', // Default to original size
 			'columns' => '4',
 			'names'   => 'true',
 			'values'  => 'true',
@@ -85,7 +85,7 @@ function gpbi_render_color_grid($atts)
 	if (!wp_style_is("gp-color-grid-styles")) {
 		wp_register_style("gp-color-grid-styles", false, [], GPBI_VERSION);
 
-		// Define our grid styles with dynamic size and columns
+		// Define our grid styles - keeping original styling with optional overrides
 		wp_add_inline_style(
 			"gp-color-grid-styles",
 			'
