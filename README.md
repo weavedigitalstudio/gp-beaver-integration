@@ -1,35 +1,37 @@
 ![Weave Cache Purge Helper](https://weave-hk-github.b-cdn.net/weave/plugin-header.png)
 
 # GP Beaver Integration
-
 This plugin syncs and integrates GeneratePress with Beaver Builder, allowing you to maintain consistent branding across your website by synchronising both your glocal colours and fonts between your theme and Beaver Builder.
 
 Developed for in-house use at Weave Digital Studio & HumanKind Websites to speed up our custom WordPress development with Generate Press and Beaver Builder. We wanted a single source of truth and single entry point for a theme's glocal colors and fonts across all of WordPress (front and back).
 
 ## Features
 
-The plugin provides three main functions:
+The plugin provides several key functions for design consistency:
 
 1. **Color Integration**: Makes your GeneratePress Global Colors automatically available in Beaver Builder's color picker by adding the correct block editor prefix '--wp--preset--color--'.
 
-2. **Font Integration**: Syncs all fonts from the GeneratePress Font Library (GP Premium required) to Beaver Builder's typography controls making them available in the builder.
+2. **Font Integration**: Syncs all fonts from the GeneratePress Font Library (GP Premium required) to Beaver Builder's typography controls.
 
 3. **Color Documentation**: Includes a shortcode `[gp_global_color_grid]` for use on a style guide which creates a visual display of your color palette, perfect for style guides or documentation pages.
+
+4. **Brand Consistency Controls**: 
+   - Disables the "Add to Palette" button in Beaver Builder's color picker to prevent users from creating custom colors outside the GeneratePress palette
+   - Removes both system fonts and Google fonts from Beaver Builder by default to enforce the use of your GeneratePress Font Library
 
 ## How It Works
 
 The plugin works automatically once activated. You don't need to:
 
-- Set up a separate Global Color Palette in Beaver Builder
-- Configure separate font libraries in Beaver Builder
-- Make any changes to your existing GeneratePress color or font settings
-- Configure any plugin settings
+- Set up a Global Color Palette in Beaver Builder
+- Use PHP to add custom fonts to Beaver Builder
+- Make any changes to your existing GeneratePress coloru or font settings
+- Configure any plugin settings 
 
-Just set your colors and fonts in GeneratePress, and they'll be available in Beaver Builder automatically.
+Just set your colours and fonts in GeneratePress, and they'll be available in Beaver Builder automatically.
 
 ## Using the Color Grid
 
-We use this to create a master style guide on the site for our clients.
 To display your color palette anywhere on your site, use the shortcode:
 
 ```
@@ -37,7 +39,7 @@ To display your color palette anywhere on your site, use the shortcode:
 ```
 
 Optional parameters:
-- `size`: Square size in pixels (default: 100)
+- `size`: Square size in pixels (default: 190)
 - `columns`: Number of columns (default: 4)
 - `names`: Show color names (default: true)
 - `values`: Show color hex values (default: true)
@@ -96,8 +98,9 @@ For more information about removing global inline styles, see:
 
 ### 0.6.0
 - Added GeneratePress Font Library integration with Beaver Builder
+- Added brand consistency controls (disabled color add button, removed system/Google fonts)
 - Renamed plugin to GP Beaver Integration to reflect expanded functionality
-- Updated documentation and code organisation
+- Updated documentation and code organization
 
 ### 0.5.0
 - Implemented automatic GitHub updates for the plugin.
