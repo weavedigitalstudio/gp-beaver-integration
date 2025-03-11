@@ -2,9 +2,9 @@
 /**
  * Plugin Name:       GP Beaver Integration
  * Plugin URI:        https://github.com/weavedigitalstudio/gp-beaver-integration
- * Description:       Automatically syncs the GeneratePress Global Colors and (new)Font Library into  Beaver Builder.
+ * Description:       Integrates GeneratePress Global Colors and Font Library with Beaver Builder for consistent branding.
  * Version:           0.6.0
- * Author:            Weave Digital Studio, G Bissland
+ * Author:            Weave Digital Studio
  * Author URI:        https://weave.co.nz
  * License:           GPL-2.0+
  */
@@ -54,15 +54,19 @@ function gpbi_init_github_updater() {
 add_action('init', 'gpbi_init_github_updater');
 
 /**
- * Includes the color grid shortcode functionality
- * We keep this separate as it's an additional feature
+ * Include color grid shortcode functionality
  */
 require_once plugin_dir_path(__FILE__) . "includes/color-grid.php";
 
 /**
- * Include font integration
+ * Include font integration functionality
  */
 require_once plugin_dir_path(__FILE__) . "includes/font-integration.php";
+
+/**
+ * Include color palette restriction functionality
+ */
+require_once plugin_dir_path(__FILE__) . "includes/color-palette-restriction.php";
 
 /**
  * Generates CSS for global color variables
