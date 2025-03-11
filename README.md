@@ -2,7 +2,9 @@
 
 # GP Beaver Integration
 
-This plugin syncs and integrates GeneratePress with Beaver Builder, allowing you to maintain consistent branding across your website by synchronizing both colors and fonts between your theme and page builder.
+This plugin syncs and integrates GeneratePress with Beaver Builder, allowing you to maintain consistent branding across your website by synchronising both your glocal colours and fonts between your theme and Beaver Builder.
+
+Developed for in-house use at Weave Digital Studio & HumanKind Websites to speed up our custom WordPress development with Generate Press and Beaver Builder. We wanted a single source of truth and single entry point for a theme's glocal colors and fonts across all of WordPress (front and back).
 
 ## Features
 
@@ -10,7 +12,7 @@ The plugin provides three main functions:
 
 1. **Color Integration**: Makes your GeneratePress Global Colors automatically available in Beaver Builder's color picker by adding the correct block editor prefix '--wp--preset--color--'.
 
-2. **Font Integration**: Syncs all fonts from the GeneratePress Font Library (GP Premium required) to Beaver Builder's typography controls.
+2. **Font Integration**: Syncs all fonts from the GeneratePress Font Library (GP Premium required) to Beaver Builder's typography controls making them available in the builder.
 
 3. **Color Documentation**: Includes a shortcode `[gp_global_color_grid]` for use on a style guide which creates a visual display of your color palette, perfect for style guides or documentation pages.
 
@@ -27,6 +29,7 @@ Just set your colors and fonts in GeneratePress, and they'll be available in Bea
 
 ## Using the Color Grid
 
+We use this to create a master style guide on the site for our clients.
 To display your color palette anywhere on your site, use the shortcode:
 
 ```
@@ -45,6 +48,8 @@ Example:
 ```
 
 This creates a responsive grid showing all your GeneratePress Global Colors with their names, CSS variables, and hex values.
+
+![Global Color Grid](https://weave-hk-github.b-cdn.net/screens/global-color-grid.png)
 
 ---
 
