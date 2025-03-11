@@ -69,6 +69,25 @@ require_once plugin_dir_path(__FILE__) . "includes/font-integration.php";
 require_once plugin_dir_path(__FILE__) . "includes/color-palette-restriction.php";
 
 /**
+ * Configure Beaver Builder Color Settings
+ * - Enable Theme Colors (required for our Global Color Sync)
+ * - Disable WordPress Core Colors (to keep color selection focused on theme colors)
+ */
+function gpbi_configure_bb_color_settings() {
+    // Only proceed if Beaver Builder is active
+    if (!class_exists('FLBuilder')) {
+        return;
+    }
+    
+    // Enable theme colors - required for our plugin
+    update_option('_fl_builder_theme_colors', '1');
+    
+    // Disable WordPress core colors - keeps the focus on theme colors
+    update_option('_fl_builder_core_colors', '0');
+}
+add_action('init', 'gpbi_configure_bb_color_settings', 20);
+
+/**
  * Generates CSS for global color variables
  * This makes GeneratePress colors available to Beaver Builder
  */
