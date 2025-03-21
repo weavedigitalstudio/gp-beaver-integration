@@ -3,7 +3,7 @@
  * Plugin Name:       GP Beaver Integration
  * Plugin URI:        https://github.com/weavedigitalstudio/gp-beaver-integration
  * Description:       Integrates GeneratePress Global Colors and Font Library with Beaver Builder page builder for brand consistency.
- * Version:           0.6.0
+ * Version:           0.7.0-beta
  * Author:            Weave Digital Studio, Gareth Bissland
  * Author URI:        https://weave.co.nz
  * License:           GPL-2.0+
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
 }
 
 // Define plugin constants
-define('GPBI_VERSION', '0.6.0');
+define('GPBI_VERSION', '0.7.0-beta');
 define('GPBI_PLUGIN_FILE', __FILE__);
 define('GPBI_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GPBI_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -67,6 +67,11 @@ require_once plugin_dir_path(__FILE__) . "includes/font-integration.php";
  * Include color palette restriction functionality
  */
 require_once plugin_dir_path(__FILE__) . "includes/color-palette-restriction.php";
+
+/**
+ * Include color integration for Beaver Builder 2.9+
+ */
+require_once plugin_dir_path(__FILE__) . "includes/color-integration-bb29.php";
 
 /**
  * Configure Beaver Builder Color Settings
@@ -126,31 +131,3 @@ function gpbi_enqueue_inline_styles()
     }
 }
 add_action("wp_enqueue_scripts", "gpbi_enqueue_inline_styles", 20);
-
-/**
- * Enqueues the color picker enhancement script
- * Makes the colors available in Beaver Builder's color picker
- */
-function gpbi_enqueue_admin_scripts()
-{
-    if (!function_exists("generate_get_global_colors")) {
-        return;
-    }
-    $global_colors = generate_get_global_colors();
-    // Only enqueue if we have colors to work with
-    if (!empty($global_colors)) {
-        wp_enqueue_script(
-            "gpbi-color-picker",
-            plugin_dir_url(__FILE__) . "js/color-picker.js",
-            ["wp-color-picker"],
-            GPBI_VERSION,
-            true
-        );
-        // Convert colors array to simple palette array
-        $palette = array_map(function ($color) {
-            return isset($color["color"]) ? $color["color"] : "";
-        }, $global_colors);
-        wp_localize_script("gpbi-color-picker", "generatePressPalette", $palette);
-    }
-}
-add_action("admin_enqueue_scripts", "gpbi_enqueue_admin_scripts");
