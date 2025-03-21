@@ -15,13 +15,65 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Add GeneratePress Global Colors to Beaver Builder's WordPress color palette
- *
- * This uses the fl_wp_core_global_colors filter provided by Beaver Builder
- * to add GeneratePress colors to the WordPress colors section.
- *
- * @param array $colors The existing WordPress core colors
- * @return array Modified array including GeneratePress colors
+ * Debug function to log color integration process
+ */
+function gpbi_debug_log($message) {
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log('[GP-Beaver Integration] ' . $message);
+    }
+}
+
+/**
+ * Get GeneratePress global colors in the format needed for Beaver Builder
+ */
+function gpbi_get_formatted_gp_colors() {
+    if (!function_exists('generate_get_global_colors')) {
+        gpbi_debug_log('GeneratePress global colors function not available');
+        return [];
+    }
+    
+    $global_colors = generate_get_global_colors();
+    if (empty($global_colors)) {
+        gpbi_debug_log('No GeneratePress global colors found');
+        return [];
+    }
+    
+    $formatted_colors = [];
+    
+    foreach ($global_colors as $color) {
+        if (empty($color['slug']) || empty($color['color'])) {
+            continue;
+        }
+        
+        $uid = substr(md5($color['slug']), 0, 9);
+        $label = isset($color['name']) ? $color['name'] : $color['slug'];
+        $color_value = isset($color['color']) ? $color['color'] : '';
+        
+        // Skip empty colors
+        if (empty($color_value)) {
+            continue;
+        }
+        
+        // Make sure color value is properly formatted
+        if (!preg_match('/^#/', $color_value)) {
+            $color_value = '#' . $color_value;
+        }
+        
+        $formatted_colors[] = [
+            'uid' => $uid,
+            'label' => $label, // No GP: prefix here
+            'color' => $color_value,
+            'slug' => sanitize_title(strtolower($color['slug'])),
+            'isGlobalColor' => true
+        ];
+    }
+    
+    gpbi_debug_log('Formatted ' . count($formatted_colors) . ' GP colors for BB');
+    return $formatted_colors;
+}
+
+/**
+ * Add GeneratePress colors to Beaver Builder's WordPress color palette
  */
 function gpbi_add_gp_colors_to_bb_palette($colors) {
     if (!function_exists('generate_get_global_colors')) {
@@ -61,111 +113,160 @@ function gpbi_add_gp_colors_to_bb_palette($colors) {
 add_filter('fl_wp_core_global_colors', 'gpbi_add_gp_colors_to_bb_palette');
 
 /**
- * Register GeneratePress Global Colors with FLPageData for better integration
+ * Filter WordPress theme colors in the Beaver Builder UI to prevent duplicates
  * 
- * This makes GeneratePress colors available as "Global Colors" in BB's color picker,
- * enabling a richer experience including field connections.
+ * This prevents duplicates in the UI but maintains the CSS variables
  */
-function gpbi_register_gp_colors_in_bb() {
-    if (!function_exists('generate_get_global_colors') || !class_exists('FLPageData')) {
-        return;
+function gpbi_remove_duplicate_theme_colors($colors) {
+    // If we have no colors, return the original array
+    if (empty($colors) || !is_array($colors)) {
+        return $colors;
     }
     
-    // Get GeneratePress colors
-    $global_colors = generate_get_global_colors();
-    if (empty($global_colors)) {
-        return;
-    }
-    
-    // Set the CSS variable prefix from GeneratePress settings if available
-    $gp_settings = get_option('generate_settings');
-    $prefix = isset($gp_settings['prefix']) && !empty($gp_settings['prefix']) 
-        ? sanitize_title(strtolower($gp_settings['prefix'])) 
-        : 'fl-global';
-    
-    // Register each color with FLPageData
-    foreach ($global_colors as $color) {
-        if (empty($color['slug']) || empty($color['color'])) {
-            continue;
-        }
-        
-        // Generate a unique ID for each color
-        $uid = substr(md5($color['slug']), 0, 9);
-        $slug = sanitize_title(strtolower($color['slug']));
-        $label = isset($color['name']) ? esc_html($color['name']) : esc_html($color['slug']);
-        $color_value = isset($color['color']) ? esc_attr($color['color']) : '';
-        
-        // Skip empty colors
-        if (empty($color_value)) {
-            continue;
-        }
-        
-        // Register color with FLPageData
-        FLPageData::add_site_property('global_color_' . $uid, array(
-            'label'  => '<span class="prefix">' . __('GeneratePress -', 'gp-beaver-integration') . '</span>' . 
-                      $label . 
-                      '<span class="swatch" style="background-color:' . 
-                      (class_exists('FLBuilderColor') ? FLBuilderColor::hex_or_rgb($color_value) : $color_value) . 
-                      ';"></span>',
-            'group'  => 'bb', // Makes it appear in the BB Global Colors section
-            'type'   => 'color',
-            'getter' => function() use ($prefix, $slug) {
-                return 'var(--wp--preset--color--' . $slug . ')';
-            },
-        ));
-        
-        // Add to the global color labels in JS config
-        add_filter('fl_builder_ui_js_config', function($config) use ($uid, $label, $color_value) {
-            if (!isset($config['globalColorLabels'])) {
-                $config['globalColorLabels'] = array();
+    // Get GeneratePress color slugs for comparison
+    $gp_color_slugs = [];
+    if (function_exists('generate_get_global_colors')) {
+        $gp_colors = generate_get_global_colors();
+        foreach ($gp_colors as $color) {
+            if (isset($color['slug'])) {
+                $gp_color_slugs[] = sanitize_title(strtolower($color['slug']));
             }
-            
-            $config['globalColorLabels']['global_color_' . $uid] = '<span class="prefix">' . 
-                __('GeneratePress -', 'gp-beaver-integration') . '</span>' . 
-                $label . 
-                '<span class="swatch" style="background-color:' . 
-                (class_exists('FLBuilderColor') ? FLBuilderColor::hex_or_rgb($color_value) : $color_value) . 
-                ';"></span>';
-            
-            return $config;
-        });
+        }
     }
+    
+    // If we have no GP colors, return the original array
+    if (empty($gp_color_slugs)) {
+        return $colors;
+    }
+    
+    // Only filter if the theme colors preference is enabled
+    $theme_colors_enabled = get_option('_fl_builder_theme_colors', '0');
+    if ($theme_colors_enabled !== '1') {
+        return $colors;
+    }
+    
+    // Filter out duplicates for UI purposes only
+    $filtered_colors = [];
+    foreach ($colors as $color) {
+        // Skip if this is a GP color we're handling elsewhere
+        if (isset($color['slug']) && in_array($color['slug'], $gp_color_slugs)) {
+            continue;
+        }
+        $filtered_colors[] = $color;
+    }
+    
+    return $filtered_colors;
 }
+add_filter('fl_wp_core_global_colors', 'gpbi_remove_duplicate_theme_colors', 20);
 
-// Register GeneratePress colors with BB's FLPageData system if it exists
-if (class_exists('FLPageData')) {
-    add_action('init', 'gpbi_register_gp_colors_in_bb', 20);
+/**
+ * Add GeneratePress colors directly to BB's global colors registry
+ * and remove the blank color at the top
+ */
+function gpbi_inject_colors_to_bb_globals() {
+    if (!class_exists('FLBuilderGlobalStyles')) {
+        gpbi_debug_log('FLBuilderGlobalStyles class not available');
+        return;
+    }
+    
+    $gp_colors = gpbi_get_formatted_gp_colors();
+    if (empty($gp_colors)) {
+        return;
+    }
+    
+    // Get existing BB global styles settings
+    $bb_settings = FLBuilderGlobalStyles::get_settings(false);
+    
+    // Initialize or reset the colors array
+    if (!isset($bb_settings->colors) || !is_array($bb_settings->colors)) {
+        $bb_settings->colors = [];
+    }
+    
+    $current_colors = $bb_settings->colors;
+    $new_colors = [];
+    $added_count = 0;
+    
+    // First, filter out empty/blank colors
+    foreach ($current_colors as $bb_color) {
+        if (!empty($bb_color['color']) && !empty($bb_color['label'])) {
+            $new_colors[] = $bb_color;
+        }
+    }
+    
+    // Now add GeneratePress colors if they don't exist
+    foreach ($gp_colors as $gp_color) {
+        $exists = false;
+        
+        // Check if this color already exists in BB colors
+        foreach ($new_colors as $key => $bb_color) {
+            if (isset($bb_color['uid']) && $bb_color['uid'] === $gp_color['uid']) {
+                // Update existing color
+                $new_colors[$key] = $gp_color;
+                $exists = true;
+                break;
+            }
+        }
+        
+        // Add new color if it doesn't exist
+        if (!$exists) {
+            $new_colors[] = $gp_color;
+            $added_count++;
+        }
+    }
+    
+    // Update BB settings with our cleaned and updated color list
+    $bb_settings->colors = $new_colors;
+    FLBuilderUtils::update_option('_fl_builder_styles', $bb_settings, true);
+    FLBuilderModel::delete_asset_cache_for_all_posts();
+    gpbi_debug_log('Updated BB global colors: removed blank colors and added/updated ' . $added_count . ' GP colors');
 }
 
 /**
- * Add GeneratePress colors to BB's Redux store via state endpoint
- * 
- * This ensures that our colors are available in the Redux store that
- * powers the React color picker UI.
+ * Register GeneratePress colors with FLPageData for better integration
  */
-function gpbi_add_gp_colors_to_bb_state($response, $request) {
-    // Only process our specific endpoint
-    if (empty($request) || !is_object($request) || !isset($request->get_route)) {
+function gpbi_register_gp_colors_with_flpagedata() {
+    if (!class_exists('FLPageData')) {
+        gpbi_debug_log('FLPageData class not available');
+        return;
+    }
+    
+    $gp_colors = gpbi_get_formatted_gp_colors();
+    if (empty($gp_colors)) {
+        return;
+    }
+    
+    foreach ($gp_colors as $color) {
+        // Register color with FLPageData - we use the prefix only in the UI label
+        FLPageData::add_site_property('global_color_' . $color['uid'], array(
+            'label'  => '<span class="prefix">' . __('GeneratePress -', 'gp-beaver-integration') . '</span>' . 
+                      esc_html($color['label']) . 
+                      '<span class="swatch" style="background-color:' . 
+                      esc_attr($color['color']) . ';"></span>',
+            'group'  => 'bb',
+            'type'   => 'color',
+            'getter' => function() use ($color) {
+                return $color['color'];
+            },
+        ));
+    }
+    
+    gpbi_debug_log('Registered ' . count($gp_colors) . ' GeneratePress colors with FLPageData');
+}
+
+/**
+ * Modify Redux store data to include GeneratePress colors
+ */
+function gpbi_add_gp_colors_to_redux_store($response, $request) {
+    if (!is_object($request) || !method_exists($request, 'get_route') || strpos($request->get_route(), '/fl-controls/v1/state') === false) {
         return $response;
     }
     
-    // Check if we're on the state API endpoint
-    $route = $request->get_route();
-    if (strpos($route, '/fl-controls/v1/state') === false) {
+    $gp_colors = gpbi_get_formatted_gp_colors();
+    if (empty($gp_colors)) {
         return $response;
     }
     
-    if (!function_exists('generate_get_global_colors')) {
-        return $response;
-    }
-    
-    // Get GeneratePress colors
-    $global_colors = generate_get_global_colors();
-    if (empty($global_colors)) {
-        return $response;
-    }
-    
-    // Ensure response object is properly set up
+    // Ensure we have the proper structure
     if (!is_object($response)) {
         $response = new stdClass();
     }
@@ -178,36 +279,86 @@ function gpbi_add_gp_colors_to_bb_state($response, $request) {
         $response->color->sets = new stdClass();
     }
     
-    // Add a GeneratePress color set
+    // IMPORTANT: Remove any existing GeneratePress theme colors that might be duplicated
+    if (isset($response->color->sets->theme) && isset($response->color->sets->theme->colors)) {
+        $gp_color_slugs = array_map(function($color) {
+            return $color['slug'] ?? '';
+        }, $gp_colors);
+        
+        $filtered_theme_colors = [];
+        foreach ($response->color->sets->theme->colors as $color) {
+            if (isset($color['label']) && !in_array(sanitize_title(strtolower($color['label'])), $gp_color_slugs)) {
+                $filtered_theme_colors[] = $color;
+            }
+        }
+        
+        $response->color->sets->theme->colors = $filtered_theme_colors;
+    }
+    
+    // Add GeneratePress colors as a set
     $response->color->sets->generatepress = array(
         'name' => 'GeneratePress',
-        'colors' => array()
+        'colors' => []
     );
     
-    // Add each color to the set
-    foreach ($global_colors as $color) {
-        if (!isset($color['slug']) || !isset($color['color'])) {
-            continue;
-        }
-        
-        $uid = substr(md5($color['slug']), 0, 9);
-        $label = isset($color['name']) ? esc_html($color['name']) : esc_html($color['slug']);
-        $color_value = isset($color['color']) ? esc_attr($color['color']) : '';
-        
-        // Skip empty colors
-        if (empty($color_value)) {
-            continue;
-        }
-        
+    foreach ($gp_colors as $color) {
         $response->color->sets->generatepress['colors'][] = array(
-            'uid' => $uid,
-            'label' => $label,
-            'color' => class_exists('FLBuilderColor') ? FLBuilderColor::hex_or_rgb($color_value) : $color_value,
+            'uid' => $color['uid'],
+            'label' => $color['label'],
+            'color' => $color['color'],
             'isGlobalColor' => true
         );
     }
     
+    gpbi_debug_log('Added GeneratePress colors to Redux store state');
     return $response;
 }
-// Add to the REST API response for state
-add_filter('rest_pre_echo_response', 'gpbi_add_gp_colors_to_bb_state', 10, 2);
+
+/**
+ * Add color labels to the JS configuration
+ */
+function gpbi_add_gp_colors_to_js_config($config) {
+    $gp_colors = gpbi_get_formatted_gp_colors();
+    if (empty($gp_colors)) {
+        return $config;
+    }
+    
+    if (!isset($config['globalColorLabels'])) {
+        $config['globalColorLabels'] = array();
+    }
+    
+    foreach ($gp_colors as $color) {
+        // Show the prefix only in UI, not in the variable name
+        $config['globalColorLabels']['global_color_' . $color['uid']] = '<span class="prefix">GeneratePress -</span>' . 
+            esc_html($color['label']) . 
+            '<span class="swatch" style="background-color:' . 
+            esc_attr($color['color']) . ';"></span>';
+    }
+    
+    gpbi_debug_log('Added GeneratePress color labels to JS config');
+    return $config;
+}
+
+/**
+ * Run our integrations when the plugin is loaded
+ */
+function gpbi_run_color_integrations() {
+    // Run immediately at plugin load to ensure BB has the colors
+    gpbi_inject_colors_to_bb_globals();
+    gpbi_register_gp_colors_with_flpagedata();
+}
+
+// Hook into appropriate actions to make this work
+add_action('plugins_loaded', 'gpbi_run_color_integrations', 20);
+add_filter('fl_builder_ui_js_config', 'gpbi_add_gp_colors_to_js_config', 10, 1);
+add_filter('rest_pre_echo_response', 'gpbi_add_gp_colors_to_redux_store', 10, 2);
+
+// Run when GeneratePress settings are updated
+add_action('generate_settings_updated', function() {
+    gpbi_inject_colors_to_bb_globals();
+    FLBuilderModel::delete_asset_cache_for_all_posts();
+    gpbi_debug_log('Re-synced GeneratePress colors after settings update');
+});
+
+// Also run on admin_init to catch updates
+add_action('admin_init', 'gpbi_inject_colors_to_bb_globals', 20);
