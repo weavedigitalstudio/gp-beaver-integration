@@ -16,8 +16,10 @@ The plugin provides several key functions for design consistency:
 3. **Color Documentation**: Includes a shortcode `[gp_global_color_grid]` for use on a style guide which creates a visual display of your color palette, perfect for style guides or documentation pages.
 
 4. **Brand Consistency Controls**: 
-   - Disables the "Add to Palette" button in Beaver Builder's color picker to prevent users from creating custom colors outside the GeneratePress palette
+   - Disables the "Add to Palette" button in Beaver Builder's new color picker to prevent users from creating custom colors outside the GeneratePress palette
    - Removes both system fonts and Google fonts from Beaver Builder by default to enforce the use of your GeneratePress Font Library
+   - Hides the "Saved Colors" section in the color picker to keep focus on the global brand colors
+   - Automatically sets the "Presets" tab as the default active tab in color pickers for faster building and quick access to your brand colors
 
 ## How It Works
 
@@ -95,6 +97,12 @@ For more information about removing global inline styles, see:
 ---
 
 ## Changelog
+
+### 0.7.0
+- **Update** color picker integration for Beaver Builder 2.9+ and it's new React color picker.
+- Added automatic "Presets" tab selection in the color picker for faster site building.
+- Removed "Saved Colors" section in the color picker to help lock down brand colour palettes.
+- Hidden the add color button to enforce brand color consistency
 
 ### 0.6.0
 - Added GeneratePress Font Library integration with Beaver Builder
