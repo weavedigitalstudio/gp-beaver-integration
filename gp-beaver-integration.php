@@ -3,7 +3,7 @@
  * Plugin Name:       GP Beaver Integration
  * Plugin URI:        https://github.com/weavedigitalstudio/gp-beaver-integration
  * Description:       Integrates GeneratePress Global Colors and Font Library with Beaver Builder page builder for brand consistency.
- * Version:           0.6.0
+ * Version:           0.7.0
  * Author:            Weave Digital Studio, Gareth Bissland
  * Author URI:        https://weave.co.nz
  * License:           GPL-2.0+
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
 }
 
 // Define plugin constants
-define('GPBI_VERSION', '0.6.0');
+define('GPBI_VERSION', '0.7.0');
 define('GPBI_PLUGIN_FILE', __FILE__);
 define('GPBI_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GPBI_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -69,8 +69,13 @@ require_once plugin_dir_path(__FILE__) . "includes/font-integration.php";
 require_once plugin_dir_path(__FILE__) . "includes/color-palette-restriction.php";
 
 /**
+ * Include color integration for Beaver Builder 2.9+
+ */
+require_once plugin_dir_path(__FILE__) . "includes/color-integration-bb29.php";
+
+/**
  * Configure Beaver Builder Color Settings
- * - Enable Theme Colors (required for our Global Color Sync)
+ * - Disable Theme Colors (not required for our Global Color Sync)
  * - Disable WordPress Core Colors (to keep color selection focused on theme colors)
  */
 function gpbi_configure_bb_color_settings() {
@@ -79,8 +84,8 @@ function gpbi_configure_bb_color_settings() {
         return;
     }
     
-    // Enable theme colors - required for our plugin
-    update_option('_fl_builder_theme_colors', '1');
+    // Disable theme colors - required for our plugin
+    update_option('_fl_builder_theme_colors', '0');
     
     // Disable WordPress core colors - keeps the focus on theme colors
     update_option('_fl_builder_core_colors', '0');
