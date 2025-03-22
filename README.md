@@ -98,11 +98,11 @@ For more information about removing global inline styles, see:
 
 ## Changelog
 
-### 0.7.0
-- **Update** color picker integration for Beaver Builder 2.9+ and it's new React color picker.
+### 1.0.0
+- Updated the color picker integration for Beaver Builder 2.9+ and its new React color picker.
 - Added automatic "Presets" tab selection in the color picker for faster site building.
-- Removed "Saved Colors" section in the color picker to help lock down brand colour palettes.
-- Hidden the add color button to enforce brand color consistency
+- Removed the "Saved Colors" section in the color picker to help lock down brand colour palettes.
+- Hide the 'add color' button to enforce brand color consistency
 
 ### 0.6.0
 - Added GeneratePress Font Library integration with Beaver Builder
