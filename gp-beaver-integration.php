@@ -3,7 +3,7 @@
  * Plugin Name:       GP Beaver Integration
  * Plugin URI:        https://github.com/weavedigitalstudio/gp-beaver-integration
  * Description:       Integrates GeneratePress Global Colors and Font Library with Beaver Builder page builder for brand consistency.
- * Version:           0.7.0
+ * Version:           1.0.0
  * Author:            Weave Digital Studio, Gareth Bissland
  * Author URI:        https://weave.co.nz
  * License:           GPL-2.0+
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
 }
 
 // Define plugin constants
-define('GPBI_VERSION', '0.7.0');
+define('GPBI_VERSION', '1.0.0');
 define('GPBI_PLUGIN_FILE', __FILE__);
 define('GPBI_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GPBI_PLUGIN_URL', plugin_dir_url(__FILE__));
