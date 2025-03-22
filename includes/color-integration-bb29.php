@@ -362,3 +362,120 @@ add_action('generate_settings_updated', function() {
 
 // Also run on admin_init to catch updates
 add_action('admin_init', 'gpbi_inject_colors_to_bb_globals', 20);
+
+/**
+ * Makes the Presets tab the default active tab in Beaver Builder's color picker
+ * This improves UX by immediately showing available colors when a color picker opens
+ */
+function gpbi_activate_presets_tab() {
+    // Only load when builder is active
+    if (!class_exists('FLBuilderModel') || !FLBuilderModel::is_builder_active()) {
+        return;
+    }
+    
+    ?>
+    <script>
+    (function($) {
+        // Function to click the presets tab in a color picker
+        function clickPresetsTab(container) {
+            if (!container) return;
+            
+            // Find the tabs at the bottom
+            var $tabs = $(container).find('.fl-controls-picker-bottom-tabs');
+            if (!$tabs.length) return;
+            
+            // The tabs are buttons - the last one should be presets
+            var $buttons = $tabs.find('.fl-control');
+            if (!$buttons.length) return;
+            
+            // Get the last button (presets tab)
+            var $presetsTab = $buttons.last();
+            
+            // Only click if not already selected
+            if (!$presetsTab.hasClass('is-selected')) {
+                //console.log('GP Beaver Integration: Activating presets tab');
+                $presetsTab.trigger('click');
+            }
+        }
+        
+        // Watch for color pickers opening
+        // Method 1: Watch for dialog elements being added
+        $(document).on('click', '.fl-controls-dialog-button', function() {
+            // Give the dialog time to fully render
+            setTimeout(function() {
+                // Find the dialog
+                $('.fl-controls-dialog').each(function() {
+                    clickPresetsTab(this);
+                });
+            }, 50);
+        });
+        
+        // Method 2: Direct MutationObserver approach
+        $(function() {
+            var observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.addedNodes && mutation.addedNodes.length) {
+                        for (var i = 0; i < mutation.addedNodes.length; i++) {
+                            var node = mutation.addedNodes[i];
+                            
+                            // Check if this is a dialog
+                            if ($(node).hasClass('fl-controls-dialog')) {
+                                // Multiple timeouts to ensure we catch it
+                                setTimeout(function() { clickPresetsTab(node); }, 10);
+                                setTimeout(function() { clickPresetsTab(node); }, 50);
+                                setTimeout(function() { clickPresetsTab(node); }, 150);
+                            }
+                        }
+                    }
+                });
+            });
+            
+            // Start observing
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            
+            // Also look for any existing color pickers
+            $('.fl-controls-dialog').each(function() {
+                clickPresetsTab(this);
+            });
+            
+            // Handle iframe content too
+            $(document).on('fl-builder.preview-rendered', function() {
+                if ($('#fl-builder-iframe').length) {
+                    var iframe = document.getElementById('fl-builder-iframe');
+                    if (iframe && iframe.contentDocument) {
+                        // Set up observer in iframe
+                        var iframeObserver = new MutationObserver(function(mutations) {
+                            mutations.forEach(function(mutation) {
+                                if (mutation.addedNodes && mutation.addedNodes.length) {
+                                    for (var i = 0; i < mutation.addedNodes.length; i++) {
+                                        var node = mutation.addedNodes[i];
+                                        if ($(node).hasClass('fl-controls-dialog')) {
+                                            setTimeout(function() { clickPresetsTab(node); }, 10);
+                                            setTimeout(function() { clickPresetsTab(node); }, 50);
+                                            setTimeout(function() { clickPresetsTab(node); }, 150);
+                                        }
+                                    }
+                                }
+                            });
+                        });
+                        
+                        iframeObserver.observe(iframe.contentDocument.body, {
+                            childList: true,
+                            subtree: true
+                        });
+                    }
+                }
+            });
+        });
+        
+    })(jQuery);
+    </script>
+    <?php
+}
+
+// Add to both footer locations
+add_action('wp_footer', 'gpbi_activate_presets_tab', 999);
+add_action('admin_footer', 'gpbi_activate_presets_tab', 999);
