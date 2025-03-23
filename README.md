@@ -1,9 +1,9 @@
 ![Weave Cache Purge Helper](https://weave-hk-github.b-cdn.net/weave/plugin-header.png)
 
 # GP Beaver Integration
-This plugin syncs and integrates GeneratePress with Beaver Builder, allowing you to maintain consistent branding across your website by synchronising both your glocal colours and fonts between your theme and Beaver Builder.
+This plugin syncs and integrates GeneratePress with Beaver Builder, allowing you to maintain consistent branding across your website by synchronising both your global colours and fonts between your theme and Beaver Builder.
 
-Developed for in-house use at Weave Digital Studio & HumanKind Websites to speed up our custom WordPress development with Generate Press and Beaver Builder. We wanted a single source of truth and single entry point for a theme's glocal colors and fonts across all of WordPress (front and back).
+Developed for in-house use at Weave Digital Studio & HumanKind Websites to speed up our custom WordPress development with Generate Press and Beaver Builder. We wanted a single source of truth and single entry point for a theme's global colors and fonts across all of WordPress (front and back).
 
 ## Features
 
@@ -21,16 +21,33 @@ The plugin provides several key functions for design consistency:
    - Hides the "Saved Colors" section in the color picker to keep focus on the global brand colors
    - Automatically sets the "Presets" tab as the default active tab in color pickers for faster building and quick access to your brand colors
 
+5. **Performance Optimized**: 
+   - Intelligent caching system prevents redundant operations
+   - Minimal database writes with transient-based synchronization
+   - Debug mode for troubleshooting
+
 ## How It Works
 
 The plugin works automatically once activated. You don't need to:
 
 - Set up a Global Color Palette in Beaver Builder
 - Use PHP to add custom fonts to Beaver Builder
-- Make any changes to your existing GeneratePress coloru or font settings
+- Make any changes to your existing GeneratePress color or font settings
 - Configure any plugin settings 
 
 Just set your colours and fonts in GeneratePress, and they'll be available in Beaver Builder automatically.
+
+## Developer Configuration
+
+### Debug Mode
+
+For troubleshooting, you can enable debug mode by adding the following constant to your wp-config.php file:
+
+```php
+define('GPBI_DEBUG', true);
+```
+
+This will output detailed logs to your error log when WP_DEBUG is also enabled. For production sites, this should be set to false (which is the default).
 
 ## Using the Color Grid
 
@@ -97,6 +114,13 @@ For more information about removing global inline styles, see:
 ---
 
 ## Changelog
+
+### 1.0.1
+**Small Performance Tweaks**
+- Added caching system to prevent redundant color synchronisation
+- Implemented GPBI_DEBUG constant for more controlled troubleshooting
+- Improved database operations by reducing unnecessary writes
+- Improved performance with transient-based color sync scheduling
 
 ### 1.0.0
 - Updated the color picker integration for Beaver Builder 2.9+ and its new React color picker.
