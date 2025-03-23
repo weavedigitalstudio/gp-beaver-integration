@@ -3,7 +3,7 @@
  * Plugin Name:       GP Beaver Integration
  * Plugin URI:        https://github.com/weavedigitalstudio/gp-beaver-integration
  * Description:       Integrates GeneratePress Global Colors and Font Library with Beaver Builder page builder for brand consistency.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Author:            Weave Digital Studio, Gareth Bissland
  * Author URI:        https://weave.co.nz
  * License:           GPL-2.0+
@@ -15,10 +15,14 @@ if (!defined("ABSPATH")) {
 }
 
 // Define plugin constants
-define('GPBI_VERSION', '1.0.0');
+define('GPBI_VERSION', '1.0.1');
 define('GPBI_PLUGIN_FILE', __FILE__);
 define('GPBI_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GPBI_PLUGIN_URL', plugin_dir_url(__FILE__));
+
+// Define debug constant - set to true to enable verbose logging
+// Set to false for production use
+define('GPBI_DEBUG', false);
 
 /**
  * Handles plugin activation requirements
@@ -39,6 +43,9 @@ function gpbi_activate_plugin()
             ["back_link" => true]
         );
     }
+    
+    // Force a color update on activation
+    set_transient('gpbi_force_color_update', true, 5 * MINUTE_IN_SECONDS);
 }
 register_activation_hook(__FILE__, "gpbi_activate_plugin");
 
@@ -84,11 +91,17 @@ function gpbi_configure_bb_color_settings() {
         return;
     }
     
-    // Disable theme colors - required for our plugin
-    update_option('_fl_builder_theme_colors', '0');
+    // Only update options if they've changed to prevent unnecessary option writes
+    $theme_colors = get_option('_fl_builder_theme_colors', null);
+    $core_colors = get_option('_fl_builder_core_colors', null);
     
-    // Disable WordPress core colors - keeps the focus on theme colors
-    update_option('_fl_builder_core_colors', '0');
+    if ($theme_colors !== '0') {
+        update_option('_fl_builder_theme_colors', '0');
+    }
+    
+    if ($core_colors !== '0') {
+        update_option('_fl_builder_core_colors', '0');
+    }
 }
 add_action('init', 'gpbi_configure_bb_color_settings', 20);
 
@@ -98,9 +111,18 @@ add_action('init', 'gpbi_configure_bb_color_settings', 20);
  */
 function gpbi_generate_global_colors_css($global_colors)
 {
-    if (empty($global_colors)) {
-        return "";
+    static $generated_css = null;
+    
+    // Return cached result if available
+    if ($generated_css !== null) {
+        return $generated_css;
     }
+    
+    if (empty($global_colors)) {
+        $generated_css = "";
+        return $generated_css;
+    }
+    
     $css = ":root{";
     foreach ($global_colors as $data) {
         if (!isset($data["slug"]) || !isset($data["color"])) {
@@ -112,7 +134,10 @@ function gpbi_generate_global_colors_css($global_colors)
             esc_attr($data["color"])
         );
     }
-    return $css . "}";
+    $css .= "}";
+    
+    $generated_css = $css;
+    return $css;
 }
 
 /**
@@ -124,8 +149,10 @@ function gpbi_enqueue_inline_styles()
     if (!function_exists("generate_get_global_colors")) {
         return;
     }
+    
     $global_colors = generate_get_global_colors();
     $css = gpbi_generate_global_colors_css($global_colors);
+    
     if (!empty($css) && wp_style_is("generate-style", "enqueued")) {
         wp_add_inline_style("generate-style", $css);
     }
@@ -138,10 +165,20 @@ add_action("wp_enqueue_scripts", "gpbi_enqueue_inline_styles", 20);
  */
 function gpbi_enqueue_admin_scripts()
 {
-    if (!function_exists("generate_get_global_colors")) {
+    // Only proceed if we need to (in admin and have colors)
+    if (!is_admin() || !function_exists("generate_get_global_colors")) {
         return;
     }
+    
+    static $already_enqueued = false;
+    
+    // Only enqueue once
+    if ($already_enqueued) {
+        return;
+    }
+    
     $global_colors = generate_get_global_colors();
+    
     // Only enqueue if we have colors to work with
     if (!empty($global_colors)) {
         wp_enqueue_script(
@@ -151,11 +188,15 @@ function gpbi_enqueue_admin_scripts()
             GPBI_VERSION,
             true
         );
+        
         // Convert colors array to simple palette array
         $palette = array_map(function ($color) {
             return isset($color["color"]) ? $color["color"] : "";
         }, $global_colors);
+        
         wp_localize_script("gpbi-color-picker", "generatePressPalette", $palette);
+        
+        $already_enqueued = true;
     }
 }
 add_action("admin_enqueue_scripts", "gpbi_enqueue_admin_scripts");
