@@ -1,7 +1,7 @@
 ![Weave Cache Purge Helper](https://weave-hk-github.b-cdn.net/weave/plugin-header.png)
 
 # GP Beaver Integration
-This plugin syncs and integrates GeneratePress with Beaver Builder, allowing you to maintain consistent branding across your website by synchronising both your global colours and fonts between your theme and Beaver Builder.
+Integrates GeneratePress Global Colors and Font Library with Beaver Builder page builder for brand consistency. Just set your colours and fonts in GeneratePress, and they'll be available in Beaver Builder automatically.
 
 Developed for in-house use at Weave Digital Studio & HumanKind Websites to speed up our custom WordPress development with Generate Press and Beaver Builder. We wanted a single source of truth and single entry point for a theme's global colors and fonts across all of WordPress (front and back).
 
@@ -9,9 +9,9 @@ Developed for in-house use at Weave Digital Studio & HumanKind Websites to speed
 
 The plugin provides several key functions for design consistency:
 
-1. **Color Integration**: Makes your GeneratePress Global Colors automatically available in Beaver Builder's color picker by adding the correct block editor prefix '--wp--preset--color--'.
+1. **Color Integration**: Automatically syncs GeneratePress Global Colors to Beaver Builder's color picker and Beaver Builder Global Styles.
 
-2. **Font Integration**: Syncs all fonts from the GeneratePress Font Library (GP Premium required) to Beaver Builder's typography controls.
+2. **Font Integration**: Makes all fonts added via GeneratePress Font Library (GP Premium required) to Beaver Builder's typography controls. no extra PHP needed.
 
 3. **Color Documentation**: Includes a shortcode `[gp_global_color_grid]` for use on a style guide which creates a visual display of your color palette, perfect for style guides or documentation pages.
 
@@ -21,56 +21,50 @@ The plugin provides several key functions for design consistency:
    - Hides the "Saved Colors" section in the color picker to keep focus on the global brand colors
    - Automatically sets the "Presets" tab as the default active tab in color pickers for faster building and quick access to your brand colors
 
-5. **Performance Optimized**: 
-   - Intelligent caching system prevents redundant operations
-   - Minimal database writes with transient-based synchronization
-   - Debug mode for troubleshooting
+5. **Settings Control**: Option to enable/disable color restrictions
 
-## How It Works
 
-The plugin works automatically once activated. You don't need to:
+## Usage
 
-- Set up a Global Color Palette in Beaver Builder
-- Use PHP to add custom fonts to Beaver Builder
-- Make any changes to your existing GeneratePress color or font settings
-- Configure any plugin settings 
+### Color Integration
 
-Just set your colours and fonts in GeneratePress, and they'll be available in Beaver Builder automatically.
+The plugin automatically:
+- Syncs your GeneratePress Global Colors with Beaver Builder and BB Glocal Styles
+- Makes colors available in all Beaver Builder color pickers
+- Optionally restricts color selection to Global Colors only
 
-## Developer Configuration
+### Font Integration
 
-### Debug Mode
+The plugin automatically:
+- Makes all GeneratePress Font Library fonts available in Beaver Builder
+- Handles font variants and weights correctly
+- Clears Beaver Builder cache when fonts are updated
 
-For troubleshooting, you can enable debug mode by adding the following constant to your wp-config.php file:
+### Color Grid Shortcode
 
-```php
-define('GPBI_DEBUG', true);
-```
+Use the shortcode `[gp_global_color_grid]` to display your color palette. Options:
 
-This will output detailed logs to your error log when WP_DEBUG is also enabled. For production sites, this should be set to false (which is the default).
-
-## Using the Color Grid
-
-To display your color palette anywhere on your site, use the shortcode:
-
-```
-[gp_global_color_grid]
-```
-
-Optional parameters:
-- `size`: Square size in pixels (default: 190)
+- `size`: Box size in pixels (default: 190)
 - `columns`: Number of columns (default: 4)
 - `names`: Show color names (default: true)
-- `values`: Show color hex values (default: true)
+- `values`: Show hex values (default: true)
 
 Example:
 ```
-[gp_global_color_grid size="150" columns="3" names="true" values="false"]
+[gp_global_color_grid size="150" columns="3" names="true" values="true"]
 ```
 
 This creates a responsive grid showing all your GeneratePress Global Colors with their names, CSS variables, and hex values.
 
 ![Global Color Grid](https://weave-hk-github.b-cdn.net/screens/global-color-grid.png)
+
+
+## Settings
+
+Under Settings > GP Beaver Integration, you can:
+- Administrator can Enable/disable color restrictions
+- Control whether users can add custom colors
+- For our own use we always have this enables so clients cannot change easily add random colors.
 
 ---
 
@@ -96,24 +90,26 @@ This plugin supports automatic updates directly from GitHub using a custom updat
 - WordPress Global Styles disabled (recommended for performance)
 - GeneratePress Premium required for Font Library integration
 
-## Removing Global Styles
+## Developer Configuration
 
-For optimal performance, add this code to your theme's functions.php file or use something like Perfmatters.
+### Debug Mode
+
+For troubleshooting, you can enable debug mode by adding the following constant to your wp-config.php file:
 
 ```php
-add_action("wp_enqueue_scripts", "remove_global_styles");
-function remove_global_styles()
-{
-	wp_dequeue_style("global-styles");
-}
+define('GPBI_DEBUG', true);
 ```
 
-For more information about removing global inline styles, see:
-[https://perfmatters.io/docs/remove-global-inline-styles-wordpress/](https://perfmatters.io/docs/remove-global-inline-styles-wordpress/)
+This will output detailed logs to your error log when WP_DEBUG is also enabled. For production sites, this should be set to false (which is the default).
 
 ---
 
 ## Changelog
+
+### 1.0.2
+- Added settings page for color restriction control
+- Fixed color picker integration with BB 2.9
+- Improved error handling
 
 ### 1.0.1
 **Small Performance Tweaks**
