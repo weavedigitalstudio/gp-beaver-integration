@@ -603,3 +603,51 @@ function gpbi_activate_presets_tab() {
 // Add to both footer locations - use a lower priority to ensure it runs after BB scripts
 add_action('wp_footer', 'gpbi_activate_presets_tab', 999);
 add_action('admin_footer', 'gpbi_activate_presets_tab', 999);
+
+/**
+ * Clear color cache when GeneratePress colors are updated
+ */
+function gpbi_clear_color_cache() {
+    delete_transient('gpbi_formatted_colors');
+    set_transient('gpbi_force_color_update', true, 5 * MINUTE_IN_SECONDS);
+}
+add_action('customize_save_after', 'gpbi_clear_color_cache');
+add_action('update_option_generate_settings', 'gpbi_clear_color_cache');
+
+/**
+ * Update Beaver Builder's global styles when GeneratePress colors change
+ */
+function gpbi_update_bb_global_styles() {
+    // Only proceed if we should update
+    if (!get_transient('gpbi_force_color_update')) {
+        return;
+    }
+    
+    // Get the colors
+    $gp_colors = gpbi_get_formatted_gp_colors();
+    if (empty($gp_colors)) {
+        return;
+    }
+    
+    // Get existing BB global styles settings
+    $bb_settings = FLBuilderGlobalStyles::get_settings(false);
+    
+    // Initialize or reset the colors array
+    if (!isset($bb_settings->colors) || !is_array($bb_settings->colors)) {
+        $bb_settings->colors = [];
+    }
+    
+    // Update colors
+    $bb_settings->colors = $gp_colors;
+    
+    // Save the updated settings
+    FLBuilderGlobalStyles::save_settings($bb_settings);
+    
+    // Clear the force update flag
+    delete_transient('gpbi_force_color_update');
+    
+    // Set a new sync timestamp
+    set_transient('gpbi_colors_synced', true, 12 * HOUR_IN_SECONDS);
+}
+add_action('customize_save_after', 'gpbi_update_bb_global_styles');
+add_action('update_option_generate_settings', 'gpbi_update_bb_global_styles');

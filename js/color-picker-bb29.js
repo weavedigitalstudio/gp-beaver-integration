@@ -36,13 +36,4 @@
 
     // Replace the original context provider with our modified one
     window.FLBuilder._config.ColorPickerContext.Provider = ColorPickerProvider;
-
-    // Also override the default tab in the Picker component
-    const originalPicker = window.FLBuilder._config.Picker;
-    window.FLBuilder._config.Picker = function(props) {
-        return originalPicker({
-            ...props,
-            defaultTab: 'presets'
-        });
-    };
 })(jQuery); 
