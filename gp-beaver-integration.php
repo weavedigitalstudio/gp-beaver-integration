@@ -3,7 +3,7 @@
  * Plugin Name:       GP Beaver Integration
  * Plugin URI:        https://github.com/weavedigitalstudio/gp-beaver-integration
  * Description:       Integrates GeneratePress Global Colors and Font Library with Beaver Builder page builder for brand consistency.
- * Version:           1.0.2
+ * Version:           1.0.3
  * Author:            Weave Digital Studio, Gareth Bissland
  * Author URI:        https://weave.co.nz
  * License:           GPL-2.0+
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
 }
 
 // Define plugin constants
-define('GPBI_VERSION', '1.0.1');
+define('GPBI_VERSION', '1.0.3');
 define('GPBI_PLUGIN_FILE', __FILE__);
 define('GPBI_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GPBI_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -199,13 +199,16 @@ function gpbi_enqueue_admin_scripts() {
         
         // For Beaver Builder 2.9+ use the new script
         if (version_compare($bb_version, '2.9.0', '>=')) {
-            wp_enqueue_script(
-                "gpbi-color-picker",
-                plugin_dir_url(__FILE__) . "js/color-picker-bb29.js",
-                ["wp-color-picker", "fl-builder-color-picker"],
-                GPBI_VERSION,
-                true
-            );
+            // NEW: Only enqueue if dependencies are available
+            if (wp_script_is('wp-color-picker', 'registered') && wp_script_is('fl-builder-color-picker', 'registered')) {
+                wp_enqueue_script(
+                    "gpbi-color-picker", 
+                    plugin_dir_url(__FILE__) . "js/color-picker-bb29.js",
+                    ["wp-color-picker", "fl-builder-color-picker"],
+                    GPBI_VERSION,
+                    true 
+                );
+            }
         }
         
         // Convert colors array to simple palette array
