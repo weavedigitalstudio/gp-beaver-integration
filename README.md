@@ -106,7 +106,7 @@ This will output detailed logs to your error log when WP_DEBUG is also enabled. 
 
 ## Changelog
 
-### 1.0.2
+### 1.0.3
 - Added settings page for color restriction control
 - Fixed color picker integration with BB 2.9
 - Improved error handling
