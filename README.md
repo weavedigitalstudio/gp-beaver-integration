@@ -1,4 +1,4 @@
-![Weave Cache Purge Helper](https://weave-hk-github.b-cdn.net/weave/plugin-header.png)
+![GP Beaver Integration](https://weave-hk-github.b-cdn.net/weave/plugin-header.png)
 
 # GP Beaver Integration
 Integrates GeneratePress Global Colors and Font Library with Beaver Builder page builder for brand consistency. Just set your colours and fonts in GeneratePress, and they'll be available in Beaver Builder automatically.
