@@ -56,7 +56,9 @@ Example:
 
 This creates a responsive grid showing all your GeneratePress Global Colors with their names, CSS variables, and hex values.
 
-![Global Color Grid](https://weave-hk-github.b-cdn.net/screens/global-color-grid.png)
+![Default Colors](https://weave-hk-github.b-cdn.net/screens/default-global-colors.png)
+
+![Global Color Grid](https://weave-hk-github.b-cdn.net/screens/color-palette2.png)
 
 
 ## Settings
@@ -64,7 +66,7 @@ This creates a responsive grid showing all your GeneratePress Global Colors with
 Under Settings > GP Beaver Integration, you can:
 - Administrator can Enable/disable color restrictions
 - Control whether users can add custom colors
-- For our own use we always have this enables so clients cannot change easily add random colors.
+- **Note** For our own use we always have this enabled so clients cannot change easily add random colors. This is the default.
 
 ---
 
