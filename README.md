@@ -108,23 +108,24 @@ This will output detailed logs to your error log when WP_DEBUG is also enabled. 
 
 ## Changelog
 
-### 1.0.3
+### 1.0.3 - 2025-04-04
 - Added settings page for color restriction control
 - Fixed color picker integration with BB 2.9
 - Improved error handling
 
-### 1.0.1
+### 1.0.1 - 2025-03-20
 **Small Performance Tweaks**
 - Added caching system to prevent redundant color synchronisation
 - Implemented GPBI_DEBUG constant for more controlled troubleshooting
 - Improved database operations by reducing unnecessary writes
 - Improved performance with transient-based color sync scheduling
 
-### 1.0.0
+### 1.0.0 - 2025-03-19
 - Updated the color picker integration for Beaver Builder 2.9+ and its new React color picker.
 - Added automatic "Presets" tab selection in the color picker for faster site building.
 - Removed the "Saved Colors" section in the color picker to help lock down brand colour palettes.
 - Hide the 'add color' button to enforce brand color consistency
+- **Added to Github**
 
 ### 0.6.0
 - Added GeneratePress Font Library integration with Beaver Builder
@@ -132,16 +133,25 @@ This will output detailed logs to your error log when WP_DEBUG is also enabled. 
 - Renamed plugin to GP Beaver Integration to reflect expanded functionality
 - Updated documentation and code organization
 
-### 0.5.0
+### 0.5.0 - 2025-02-20
 - Implemented automatic GitHub updates for the plugin.
 - Now updates are detected via GitHub releases, allowing seamless plugin updates in WordPress.
 
-### 0.4.2
+### 0.4.2 - 2025-02-13
 - Added color grid shortcode for displaying color palettes in style guides
 - Updated plugin name for clarity
 - Improved code organization and inline documentation
 - Enhanced compatibility checks
 
-### 0.3.0
+### 0.3.0 - 2025-01-26
 - Minified CSS output for better performance
 - Removed unnecessary comments and whitespace in generated styles
+
+### 0.1.0 - 2024-10-12
+- Code tidy up - using wp_get_theme()->get_template() instead of wp_get_theme()->get('Template')
+
+### 0.0.5 - 2024-08-01
+- Added theme check for Generate Press & GP Child themes
+
+### 0.0.2 - 2024-06-02
+- Initial release for testing
