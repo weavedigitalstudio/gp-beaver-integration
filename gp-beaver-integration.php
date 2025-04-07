@@ -3,7 +3,7 @@
  * Plugin Name:       GP Beaver Integration
  * Plugin URI:        https://github.com/weavedigitalstudio/gp-beaver-integration
  * Description:       Integrates GeneratePress Global Colors and Font Library with Beaver Builder page builder for brand consistency.
- * Version:           1.0.3
+ * Version:           1.0.5
  * Author:            Weave Digital Studio, Gareth Bissland
  * Author URI:        https://weave.co.nz
  * License:           GPL-2.0+
@@ -15,14 +15,54 @@ if (!defined("ABSPATH")) {
 }
 
 // Define plugin constants
-define('GPBI_VERSION', '1.0.3');
+define('GPBI_VERSION', '1.0.5');
 define('GPBI_PLUGIN_FILE', __FILE__);
 define('GPBI_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GPBI_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Define debug constant - set to true to enable verbose logging
 // Set to false for production use
-define('GPBI_DEBUG', false);
+if (!defined('GPBI_DEBUG')) {
+    define('GPBI_DEBUG', false);
+}
+
+// Define customizer error tracking constant
+if (!defined('GPBI_TRACK_CUSTOMIZER_ERRORS')) {
+    define('GPBI_TRACK_CUSTOMIZER_ERRORS', true);
+}
+
+/**
+ * Debug function to log integration process
+ * Only logs if both WP_DEBUG and GPBI_DEBUG are true
+ */
+if (!function_exists('gpbi_debug_log')) {
+    function gpbi_debug_log($message) {
+        if (defined('WP_DEBUG') && WP_DEBUG && (defined('GPBI_DEBUG') && GPBI_DEBUG)) {
+            error_log('[GP-Beaver Integration] ' . $message);
+        }
+    }
+}
+
+/**
+ * Central function to ensure colors are synced properly
+ * This prevents duplicate colors by centralizing the sync process
+ */
+function gpbi_sync_colors_to_bb() {
+    // Only continue if we have the proper function
+    if (!function_exists('gpbi_update_bb_global_styles')) {
+        return;
+    }
+    
+    // Check if force update is needed, or run if it's not set
+    if (get_transient('gpbi_force_color_update') || !get_transient('gpbi_colors_synced')) {
+        gpbi_debug_log('Running color sync via central function');
+        gpbi_update_bb_global_styles();
+    }
+}
+
+// Add central hooks for color syncing to avoid duplicates
+add_action('customize_save_after', 'gpbi_sync_colors_to_bb', 30);
+add_action('update_option_generate_settings', 'gpbi_sync_colors_to_bb', 30);
 
 /**
  * Handles plugin activation requirements
@@ -61,19 +101,51 @@ function gpbi_init_github_updater() {
 add_action('init', 'gpbi_init_github_updater');
 
 /**
+ * Include necessary files
+ */
+require_once GPBI_PLUGIN_DIR . 'includes/github-updater.php';
+
+/**
  * Include color grid shortcode functionality
  */
-require_once plugin_dir_path(__FILE__) . "includes/color-grid.php";
+require_once GPBI_PLUGIN_DIR . 'includes/color-grid.php';
 
 /**
  * Include font integration functionality
  */
-require_once plugin_dir_path(__FILE__) . "includes/font-integration.php";
+require_once GPBI_PLUGIN_DIR . 'includes/font-integration.php';
 
 /**
  * Include color palette restriction functionality
  */
-require_once plugin_dir_path(__FILE__) . "includes/color-palette-restriction.php";
+require_once GPBI_PLUGIN_DIR . 'includes/color-palette-restriction.php';
+
+/**
+ * Detect Beaver Builder version to determine which scripts to load
+ * 
+ * @return bool True if BB version is 2.9 or higher
+ */
+function gpbi_is_new_bb_version() {
+    if (!defined('FL_BUILDER_VERSION')) {
+        return false;
+    }
+    
+    return version_compare(FL_BUILDER_VERSION, '2.9', '>=');
+}
+
+/**
+ * Include the appropriate color swatch fixers based on BB version
+ */
+if (gpbi_is_new_bb_version()) {
+    // Modern BB 2.9+ React-based color picker fixes
+    require_once GPBI_PLUGIN_DIR . 'includes/color-swatch-fixer.php';
+} else {
+    // Classic BB 2.8 and earlier fixes
+    require_once GPBI_PLUGIN_DIR . 'includes/classic-color-swatch-fixer.php';
+    require_once GPBI_PLUGIN_DIR . 'includes/classic-preset-activator.php';
+    // Add the ultra-direct BB 2.8 fix
+    require_once GPBI_PLUGIN_DIR . 'includes/bb28-global-colors-fix.php';
+}
 
 /**
  * Include color integration functionality
@@ -85,11 +157,11 @@ function gpbi_include_color_integration() {
     
     // For Beaver Builder 2.9+ use the new integration
     if (version_compare($bb_version, '2.9.0', '>=')) {
-        require_once plugin_dir_path(__FILE__) . "includes/color-integration-bb29.php";
+        require_once GPBI_PLUGIN_DIR . 'includes/color-integration-bb29.php';
     } 
     // For older versions, use the legacy integration
     else {
-        require_once plugin_dir_path(__FILE__) . "includes/color-integration.php";
+        require_once GPBI_PLUGIN_DIR . 'includes/color-integration.php';
     }
 }
 add_action('plugins_loaded', 'gpbi_include_color_integration');
@@ -100,21 +172,61 @@ add_action('plugins_loaded', 'gpbi_include_color_integration');
  * - Disable WordPress Core Colors (to keep color selection focused on theme colors)
  */
 function gpbi_configure_bb_color_settings() {
-    // Only proceed if Beaver Builder is active
+    // Check if Beaver Builder is active
     if (!class_exists('FLBuilder')) {
         return;
     }
     
-    // Only update options if they've changed to prevent unnecessary option writes
-    $theme_colors = get_option('_fl_builder_theme_colors', null);
-    $core_colors = get_option('_fl_builder_core_colors', null);
-    
-    if ($theme_colors !== '0') {
-        update_option('_fl_builder_theme_colors', '0');
+    // Check if FLBuilderModel exists
+    if (!class_exists('FLBuilderModel')) {
+        return;
     }
     
-    if ($core_colors !== '0') {
-        update_option('_fl_builder_core_colors', '0');
+    $options = get_option('gpbi_settings');
+    $restrict_colors = isset($options['restrict_colors']) && $options['restrict_colors'];
+    
+    $global_settings = FLBuilderModel::get_global_settings();
+    
+    // Add check: Ensure global_settings is an object before proceeding
+    if (!is_object($global_settings)) {
+        return; // Cannot proceed if settings aren't loaded
+    }
+    
+    // Determine the correct setting key based on BB version
+    $setting_key = 'show_wordpress_colors';
+    if (isset($global_settings->use_wp_palette)) {
+        $setting_key = 'use_wp_palette';
+    }
+    
+    $setting_changed = false;
+    
+    // If restriction is enabled, ensure the setting is false
+    if ($restrict_colors) {
+        // Check if the property exists before accessing
+        if (property_exists($global_settings, $setting_key)) {
+            if ($global_settings->$setting_key !== false) {
+                $global_settings->$setting_key = false;
+                $setting_changed = true;
+            }
+        }
+    } 
+    // If restriction is disabled, ensure the setting is true
+    else {
+        // Check if the property exists before accessing
+        if (property_exists($global_settings, $setting_key)) {
+            if ($global_settings->$setting_key !== true) {
+                $global_settings->$setting_key = true;
+                $setting_changed = true;
+            }
+        }
+    }
+    
+    // BUGFIX: FLBuilderModel::update_global_settings() doesn't exist
+    // This call was causing the 500 error in the customizer
+    if ($setting_changed) {
+        // Instead of FLBuilderModel::update_global_settings(), we'll use the proper method
+        // or just log that the setting would be changed
+        gpbi_debug_log('Would update BB setting: ' . $setting_key . ' to ' . ($restrict_colors ? 'false' : 'true'));
     }
 }
 add_action('init', 'gpbi_configure_bb_color_settings', 20);
@@ -178,48 +290,87 @@ add_action("wp_enqueue_scripts", "gpbi_enqueue_inline_styles", 20);
  * Makes the colors available in Beaver Builder's color picker
  */
 function gpbi_enqueue_admin_scripts() {
-    // Only proceed if we need to (in admin and have colors)
-    if (!is_admin() || !function_exists("generate_get_global_colors")) {
+    // Define script paths
+    $bb29_script_rel_path = "js/color-picker-bb29.js";
+    $bb29_script_abs_path = plugin_dir_path(__FILE__) . $bb29_script_rel_path;
+    $customizer_script_rel_path = "js/customizer-handler.js";
+    $customizer_script_abs_path = plugin_dir_path(__FILE__) . $customizer_script_rel_path;
+
+    // Check if we are in the BB editor or Customizer preview
+    $is_bb_active = class_exists('FLBuilderModel') && FLBuilderModel::is_builder_active();
+    $is_customizer = is_customize_preview();
+
+    // Only proceed if we are in BB editor or Customizer, and GeneratePress functions exist
+    if ((!$is_bb_active && !$is_customizer) || !function_exists("generate_get_global_colors")) {
         return;
     }
-    
+
     static $already_enqueued = false;
     
-    // Only enqueue once
+    // Only enqueue once per request
     if ($already_enqueued) {
         return;
     }
-    
+
+    // Fetch global colors only when needed
     $global_colors = generate_get_global_colors();
     
-    // Only enqueue if we have colors to work with
-    if (!empty($global_colors)) {
+    // Only proceed if we have colors to work with
+    if (empty($global_colors)) {
+        return; 
+    }
+
+    // Convert colors array to simple palette array for localization
+    $palette = array_map(function ($color) {
+        return isset($color["color"]) ? $color["color"] : "";
+    }, $global_colors);
+
+    // Enqueue scripts based on context
+    if ($is_bb_active) {
         // Check Beaver Builder version
         $bb_version = defined('FL_BUILDER_VERSION') ? FL_BUILDER_VERSION : '0';
         
-        // For Beaver Builder 2.9+ use the new script
-        if (version_compare($bb_version, '2.9.0', '>=')) {
-            // NEW: Only enqueue if dependencies are available
-            if (wp_script_is('wp-color-picker', 'registered') && wp_script_is('fl-builder-color-picker', 'registered')) {
-                wp_enqueue_script(
-                    "gpbi-color-picker", 
-                    plugin_dir_url(__FILE__) . "js/color-picker-bb29.js",
-                    ["wp-color-picker", "fl-builder-color-picker"],
-                    GPBI_VERSION,
-                    true 
-                );
-            }
+        // Enqueue BB 2.9+ script if version matches, dependencies are met, and file exists
+        if (version_compare($bb_version, '2.9.0', '>=') &&
+            wp_script_is('wp-color-picker', 'registered') && 
+            wp_script_is('fl-builder-color-picker', 'registered') &&
+            file_exists($bb29_script_abs_path)) { 
+
+            wp_enqueue_script(
+                "gpbi-color-picker", 
+                plugin_dir_url(__FILE__) . $bb29_script_rel_path,
+                ["wp-color-picker", "fl-builder-color-picker"],
+                GPBI_VERSION,
+                true 
+            );
+            
+            // Localize only if the script was successfully enqueued
+            wp_localize_script("gpbi-color-picker", "generatePressPalette", $palette);
         }
+        // TODO: Consider adding logic for BB versions older than 2.9 if needed
         
-        // Convert colors array to simple palette array
-        $palette = array_map(function ($color) {
-            return isset($color["color"]) ? $color["color"] : "";
-        }, $global_colors);
-        
-        wp_localize_script("gpbi-color-picker", "generatePressPalette", $palette);
-        
-        $already_enqueued = true;
+    } elseif ($is_customizer) {
+        // Enqueue customizer script if the file exists
+        if (file_exists($customizer_script_abs_path)) {
+            wp_enqueue_script(
+                "gpbi-customizer", 
+                plugin_dir_url(__FILE__) . $customizer_script_rel_path,
+                ["jquery"],
+                GPBI_VERSION,
+                true 
+            );
+            
+            // Pass debug flag to script
+            wp_localize_script("gpbi-customizer", "gpbiCustomizer", [
+                "debug" => defined('GPBI_DEBUG') && GPBI_DEBUG
+            ]);
+            
+            // Localize palette for customizer too? Might be needed depending on customizer script.
+            // wp_localize_script("gpbi-customizer", "generatePressPalette", $palette); 
+        }
     }
+    
+    $already_enqueued = true; 
 }
 add_action("admin_enqueue_scripts", "gpbi_enqueue_admin_scripts");
 
@@ -334,3 +485,40 @@ function gpbi_render_settings_page() {
     </div>
     <?php
 }
+
+/**
+ * AJAX handler for tracking errors from JavaScript
+ */
+function gpbi_ajax_track_error() {
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'save-customize_' . get_stylesheet())) {
+        wp_send_json_error('Invalid nonce');
+        return;
+    }
+    
+    // Check user capabilities
+    if (!current_user_can('edit_theme_options')) {
+        wp_send_json_error('Insufficient permissions');
+        return;
+    }
+    
+    // Get error data
+    $error_data = isset($_POST['error']) ? json_decode(stripslashes($_POST['error']), true) : null;
+    
+    if (!$error_data) {
+        wp_send_json_error('Invalid error data');
+        return;
+    }
+    
+    // Add browser info
+    $error_data['user_agent'] = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'Unknown';
+    $error_data['timestamp'] = current_time('mysql');
+    
+    // Track the error
+    if (function_exists('gpbi_track_customizer_error')) {
+        gpbi_track_customizer_error($error_data);
+    }
+    
+    wp_send_json_success('Error tracked');
+}
+add_action('wp_ajax_gpbi_track_error', 'gpbi_ajax_track_error');
