@@ -108,6 +108,13 @@ This will output detailed logs to your error log when WP_DEBUG is also enabled. 
 
 ## Changelog
 
+### 1.0.5 - 2025-04-09
+- Fixed 500 error when saving in WordPress customizer..
+- Fixed colors not initializing properly in Beaver Builder Global Styles interfaces
+- Fixed compatibility with both Beaver Builder 2.8.x and 2.9+ versions
+- Fixed preset tabs not appearing as default in color pickers, broken in last version.
+- **Note** Global color palette automatic display in Global Styles panel works fully in BB 2.9+, but BB 2.8.x users will need to click on each color swatch to activate it
+
 ### 1.0.3 - 2025-04-04
 - Added settings page for color restriction control
 - Fixed color picker integration with BB 2.9

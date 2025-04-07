@@ -16,12 +16,36 @@ if (!defined('ABSPATH')) {
 }
 
 /**
- * Debug function to log color integration process
- * Only logs if both WP_DEBUG and GPBI_DEBUG are true
+ * Track customizer errors for debugging
  */
-function gpbi_debug_log($message) {
-    if (defined('WP_DEBUG') && WP_DEBUG && (defined('GPBI_DEBUG') && GPBI_DEBUG)) {
-        error_log('[GP-Beaver Integration] ' . $message);
+function gpbi_track_customizer_error($error) {
+    if (!defined('GPBI_TRACK_CUSTOMIZER_ERRORS') || !GPBI_TRACK_CUSTOMIZER_ERRORS) {
+        return;
+    }
+    
+    // Get existing errors
+    $errors = get_transient('gpbi_customizer_errors');
+    if (!is_array($errors)) {
+        $errors = [];
+    }
+    
+    // Add timestamp
+    $error['timestamp'] = current_time('mysql');
+    
+    // Add to errors array
+    $errors[] = $error;
+    
+    // Keep only the last 10 errors
+    if (count($errors) > 10) {
+        $errors = array_slice($errors, -10);
+    }
+    
+    // Save errors
+    set_transient('gpbi_customizer_errors', $errors, 24 * HOUR_IN_SECONDS);
+    
+    // Log if debug is enabled
+    if (defined('GPBI_DEBUG') && GPBI_DEBUG) {
+        gpbi_debug_log('Customizer error tracked: ' . print_r($error, true));
     }
 }
 
@@ -42,20 +66,18 @@ function gpbi_get_formatted_gp_colors() {
     $transient_key = 'gpbi_formatted_colors';
     $cached_colors = get_transient($transient_key);
     if ($cached_colors !== false) {
-        gpbi_debug_log('Using cached colors from transient');
         return $cached_colors;
     }
     
     // Check GeneratePress availability
     if (!function_exists('generate_get_global_colors')) {
-        gpbi_debug_log('GeneratePress global colors function not available');
         $cached_colors = [];
         return $cached_colors;
     }
     
     $global_colors = generate_get_global_colors();
+    
     if (empty($global_colors)) {
-        gpbi_debug_log('No GeneratePress global colors found');
         $cached_colors = [];
         return $cached_colors;
     }
@@ -83,7 +105,7 @@ function gpbi_get_formatted_gp_colors() {
         
         $formatted_colors[] = [
             'uid' => $uid,
-            'label' => $label, // No GP: prefix here
+            'label' => $label,
             'color' => $color_value,
             'slug' => sanitize_title(strtolower($color['slug'])),
             'isGlobalColor' => true
@@ -91,7 +113,6 @@ function gpbi_get_formatted_gp_colors() {
     }
     
     $count = count($formatted_colors);
-    gpbi_debug_log("Formatted {$count} GP colors for BB");
     
     // Cache the result in a transient - 12 hour cache
     set_transient($transient_key, $formatted_colors, 12 * HOUR_IN_SECONDS);
@@ -189,173 +210,454 @@ function gpbi_remove_duplicate_theme_colors($colors) {
 add_filter('fl_wp_core_global_colors', 'gpbi_remove_duplicate_theme_colors', 20);
 
 /**
- * Add GeneratePress colors directly to BB's global colors registry
- * and remove the blank color at the top
- * 
- * Now with optimization to only run when needed
+ * Update Beaver Builder global styles with GeneratePress colors
  */
-function gpbi_inject_colors_to_bb_globals() {
-    static $already_run = false;
-    
-    // Only run once per page load
-    if ($already_run) {
+function gpbi_update_bb_global_styles() {
+    // Check GeneratePress availability
+    if (!function_exists('generate_get_global_colors')) {
         return;
     }
     
-    // Check if required classes exist
+    // Check BB availability
     if (!class_exists('FLBuilderGlobalStyles')) {
-        gpbi_debug_log('FLBuilderGlobalStyles class not available');
         return;
     }
     
-    // Check if we should skip this update
-    $should_update = false;
-    
-    // Force update if the 'gpbi_force_color_update' transient is set
-    if (get_transient('gpbi_force_color_update')) {
-        $should_update = true;
-        delete_transient('gpbi_force_color_update');
-        gpbi_debug_log('Forced color update requested');
-    } 
-    // Check if colors have been cached longer than the update interval
-    elseif (false === get_transient('gpbi_colors_synced')) {
-        $should_update = true;
-        gpbi_debug_log('Colors sync interval expired');
-    }
-    
-    // If no update is needed, exit early
-    if (!$should_update) {
-        gpbi_debug_log('Skipping color update - no changes detected');
+    // Get GeneratePress colors
+    $global_colors = generate_get_global_colors();
+    if (empty($global_colors)) {
         return;
     }
     
-    // Get the colors
-    $gp_colors = gpbi_get_formatted_gp_colors();
-    if (empty($gp_colors)) {
-        return;
+    // Format GP colors for BB
+    $formatted_colors = [];
+    foreach ($global_colors as $color) {
+        if (empty($color['slug']) || empty($color['color'])) {
+            continue;
+        }
+        
+        $uid = substr(md5($color['slug']), 0, 9);
+        $label = isset($color['name']) ? $color['name'] : $color['slug'];
+        $color_value = isset($color['color']) ? $color['color'] : '';
+        
+        // Skip empty colors
+        if (empty($color_value)) {
+            continue;
+        }
+        
+        // Make sure color value is properly formatted
+        if (!preg_match('/^#/', $color_value)) {
+            $color_value = '#' . $color_value;
+        }
+        
+        $formatted_colors[] = [
+            'uid' => $uid,
+            'label' => $label,
+            'color' => $color_value,
+            'slug' => sanitize_title(strtolower($color['slug'])),
+            'isGlobalColor' => true
+        ];
     }
     
-    // Get existing BB global styles settings
+    // Get current BB settings
     $bb_settings = FLBuilderGlobalStyles::get_settings(false);
     
-    // Initialize or reset the colors array
+    // Initialize colors array if it doesn't exist
     if (!isset($bb_settings->colors) || !is_array($bb_settings->colors)) {
         $bb_settings->colors = [];
     }
     
-    $current_colors = $bb_settings->colors;
+    // Create a new array for the updated colors
     $new_colors = [];
-    $added_count = 0;
-    $updated_count = 0;
     
-    // First, filter out empty/blank colors
-    foreach ($current_colors as $bb_color) {
-        if (!empty($bb_color['color']) && !empty($bb_color['label'])) {
-            $new_colors[] = $bb_color;
-        }
-    }
-    
-    // Track all GP color UIDs to detect changes
-    $gp_color_uids = [];
-    
-    // Now add GeneratePress colors if they don't exist
-    foreach ($gp_colors as $gp_color) {
-        $exists = false;
-        $gp_color_uids[] = $gp_color['uid'];
+    // First, add all existing BB colors that aren't GP colors
+    foreach ($bb_settings->colors as $bb_color) {
+        $found = false;
         
-        // Check if this color already exists in BB colors
-        foreach ($new_colors as $key => $bb_color) {
-            if (isset($bb_color['uid']) && $bb_color['uid'] === $gp_color['uid']) {
-                // Only update if the color value actually changed
-                if ($bb_color['color'] !== $gp_color['color'] || $bb_color['label'] !== $gp_color['label']) {
-                    // Update existing color
-                    $new_colors[$key] = $gp_color;
-                    $updated_count++;
-                }
-                $exists = true;
+        // Check if this is a GP color by comparing slugs
+        foreach ($formatted_colors as $gp_color) {
+            if (isset($bb_color['slug']) && isset($gp_color['slug']) && 
+                $bb_color['slug'] === $gp_color['slug']) {
+                $found = true;
                 break;
             }
         }
         
-        // Add new color if it doesn't exist
-        if (!$exists) {
-            $new_colors[] = $gp_color;
-            $added_count++;
+        // If not a GP color, keep it
+        if (!$found) {
+            $new_colors[] = $bb_color;
         }
     }
     
-    // Only update BB settings if we made changes
-    if ($added_count > 0 || $updated_count > 0) {
-        // Update BB settings with our cleaned and updated color list
-        $bb_settings->colors = $new_colors;
-        FLBuilderUtils::update_option('_fl_builder_styles', $bb_settings, true);
+    // Now add all GP colors
+    $new_colors = array_merge($new_colors, $formatted_colors);
+    
+    // Update BB settings
+    $bb_settings->colors = $new_colors;
+    
+    // Save settings
+    try {
+        FLBuilderGlobalStyles::save_settings($bb_settings);
         
-        // Clear the asset cache only if we made changes
-        if (method_exists('FLBuilderModel', 'delete_asset_cache_for_all_posts')) {
+        // Clear BB's asset cache to ensure changes take effect
+        if (class_exists('FLBuilderModel') && method_exists('FLBuilderModel', 'delete_asset_cache_for_all_posts')) {
             FLBuilderModel::delete_asset_cache_for_all_posts();
         }
-        
-        gpbi_debug_log("Updated BB global colors: added {$added_count} and updated {$updated_count} GP colors");
-    } else {
-        gpbi_debug_log('No color changes detected, BB global colors not updated');
+    } catch (Exception $e) {
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[GP-Beaver Integration] Error saving BB global styles: ' . $e->getMessage());
+        }
     }
-    
-    // Set a transient to indicate we've synced
-    set_transient('gpbi_colors_synced', true, 6 * HOUR_IN_SECONDS); // Check again in 6 hours
-    
-    // Mark as run for this page load
-    $already_run = true;
 }
 
 /**
- * Clear color caches when GP settings are updated
+ * Clear color caches when customizer settings are saved
  */
 function gpbi_clear_color_caches() {
     delete_transient('gpbi_formatted_colors');
     delete_transient('gpbi_colors_synced');
     set_transient('gpbi_force_color_update', true, 5 * MINUTE_IN_SECONDS);
-    gpbi_debug_log('Color caches cleared and update scheduled');
+    
+    // Changed in v1.0.17: Perform cache clearing directly, remove shutdown hook
+    // Run this AFTER the settings save (priority 30)
+    add_action('customize_save_after', function() { 
+        try {
+            // Clear WP object cache (might be redundant, but safe)
+            if (function_exists('wp_cache_flush')) {
+                wp_cache_flush();
+            }
+            
+            // Clear BB's asset cache if possible
+            if (class_exists('FLBuilderModel') && method_exists('FLBuilderModel', 'delete_asset_cache_for_all_posts')) {
+                FLBuilderModel::delete_asset_cache_for_all_posts();
+            }
+            
+        } catch (Exception $e) {
+            // Track the error
+            gpbi_track_customizer_error([
+                'type' => 'cache_clear_direct', // Changed type
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }, 30); // Priority 30 for cache clearing
 }
+add_action('generate_settings_updated', 'gpbi_clear_color_caches'); // Keep this for GP settings page saves
 
 /**
  * Register GeneratePress colors with FLPageData for better integration
  */
 function gpbi_register_gp_colors_with_flpagedata() {
-    static $already_registered = false;
-    
-    // Only register once per page load
-    if ($already_registered) {
-        return;
-    }
-    
     if (!class_exists('FLPageData')) {
-        gpbi_debug_log('FLPageData class not available');
         return;
     }
     
-    $gp_colors = gpbi_get_formatted_gp_colors();
-    if (empty($gp_colors)) {
+    // Get GeneratePress colors
+    if (!function_exists('generate_get_global_colors')) {
         return;
     }
     
-    foreach ($gp_colors as $color) {
-        // Register color with FLPageData - we use the prefix only in the UI label
-        FLPageData::add_site_property('global_color_' . $color['uid'], array(
+    $global_colors = generate_get_global_colors();
+    if (empty($global_colors)) {
+        return;
+    }
+    
+    // Format colors for registration
+    foreach ($global_colors as $color) {
+        if (empty($color['slug']) || empty($color['color'])) {
+            continue;
+        }
+        
+        $uid = substr(md5($color['slug']), 0, 9);
+        $label = isset($color['name']) ? $color['name'] : $color['slug'];
+        $color_value = isset($color['color']) ? $color['color'] : '';
+        
+        // Skip empty colors
+        if (empty($color_value)) {
+            continue;
+        }
+        
+        // Make sure color value is properly formatted
+        if (!preg_match('/^#/', $color_value)) {
+            $color_value = '#' . $color_value;
+        }
+        
+        // Register color with FLPageData
+        FLPageData::add_site_property('global_color_' . $uid, array(
             'label'  => '<span class="prefix">' . __('GeneratePress -', 'gp-beaver-integration') . '</span>' . 
-                      esc_html($color['label']) . 
+                      esc_html($label) . 
                       '<span class="swatch" style="background-color:' . 
-                      esc_attr($color['color']) . ';"></span>',
+                      esc_attr($color_value) . ';"></span>',
             'group'  => 'bb',
             'type'   => 'color',
-            'getter' => function() use ($color) {
-                return $color['color'];
+            'getter' => function() use ($color_value) {
+                return $color_value;
             },
         ));
     }
-    
-    $already_registered = true;
-    gpbi_debug_log('Registered ' . count($gp_colors) . ' GeneratePress colors with FLPageData');
 }
+
+/**
+ * Initialize the integration
+ */
+function gpbi_initialize_color_integration() {
+    // Register colors with FLPageData
+    gpbi_register_gp_colors_with_flpagedata();
+}
+
+// Run during regular page init to catch front-end usage
+add_action('wp', 'gpbi_initialize_color_integration', 20);
+
+// Run in admin to catch color picker in Beaver Builder editor
+add_action('admin_init', 'gpbi_initialize_color_integration', 20);
+
+// Also run when GP settings are updated
+add_action('customize_save_after', 'gpbi_initialize_color_integration', 20);
+add_action('update_option_generate_settings', 'gpbi_initialize_color_integration', 20);
+
+/**
+ * Add CSS to ensure color swatches display properly in Global Styles panel
+ */
+function gpbi_add_global_styles_color_css() {
+    // Only load on admin pages where the Beaver Builder Global Styles might be shown
+    if (!defined('FL_BUILDER_VERSION')) {
+        return;
+    }
+    
+    // Get GeneratePress colors
+    if (!function_exists('generate_get_global_colors')) {
+        return;
+    }
+    
+    $global_colors = generate_get_global_colors();
+    if (empty($global_colors)) {
+        return;
+    }
+    
+    echo '<style type="text/css">';
+    
+    // Loop through each color and create selector rules for the global styles panel
+    foreach ($global_colors as $color) {
+        if (empty($color['slug']) || empty($color['color'])) {
+            continue;
+        }
+        
+        $slug = sanitize_title(strtolower($color['slug']));
+        $color_value = isset($color['color']) ? $color['color'] : '';
+        
+        // Skip empty colors
+        if (empty($color_value)) {
+            continue;
+        }
+        
+        // Make sure color value is properly formatted
+        if (!preg_match('/^#/', $color_value)) {
+            $color_value = '#' . $color_value;
+        }
+        
+        // Super aggressive targeting of color swatches
+        echo '.fl-builder-global-settings .fl-color-picker-color[data-slug="' . esc_attr($slug) . '"],';
+        echo '.fl-builder-global-settings div[data-slug="' . esc_attr($slug) . '"],';
+        
+        // Target by UID as well
+        $uid = substr(md5($color['slug']), 0, 9);
+        echo '.fl-builder-global-settings .fl-color-picker-color[data-uid="' . esc_attr($uid) . '"],';
+        echo '.fl-builder-global-settings div[data-uid="' . esc_attr($uid) . '"] {';
+        echo 'background-color: ' . esc_attr($color_value) . ' !important;';
+        echo 'opacity: 1 !important;';
+        echo '}';
+    }
+    
+    // Force all color picker buttons to be visible
+    echo '.fl-builder-global-settings .fl-color-picker-color,';
+    echo '.fl-color-picker-color,';
+    echo '.fl-builder-global-settings button.fl-color-picker-color,';
+    echo '.fl-builder-global-settings div.fl-color-picker-color {';
+    echo '  opacity: 1 !important;';
+    echo '  visibility: visible !important;';
+    echo '  display: inline-block !important;';
+    echo '}';
+    
+    echo '</style>';
+}
+add_action('admin_head', 'gpbi_add_global_styles_color_css', 999);
+add_action('wp_head', 'gpbi_add_global_styles_color_css', 999);
+
+/**
+ * Enqueue ultra-aggressive color swatch fixer and presets tab activator
+ */
+function gpbi_enqueue_color_fixer_script() {
+    if (!defined('FL_BUILDER_VERSION')) {
+        return;
+    }
+    
+    ?>
+    <script>
+    (function() {
+        // Direct DOM manipulation to ensure colors appear immediately
+        function forceColorSwatches() {
+            // Target all possible color swatch elements
+            var colorSwatches = document.querySelectorAll('.fl-builder-global-settings .fl-color-picker-color, .fl-color-picker-color');
+            
+            // Process each swatch
+            for (var i = 0; i < colorSwatches.length; i++) {
+                var swatch = colorSwatches[i];
+                var color = swatch.getAttribute('data-color') || '';
+                var slug = swatch.getAttribute('data-slug') || '';
+                var uid = swatch.getAttribute('data-uid') || '';
+                
+                // If there's a color, force apply it
+                if (color) {
+                    swatch.style.backgroundColor = color;
+                    swatch.style.opacity = '1';
+                    swatch.style.visibility = 'visible';
+                    swatch.style.display = 'inline-block';
+                    
+                    // Force browser reflow/repaint
+                    void swatch.offsetWidth;
+                }
+            }
+        }
+        
+        // Run immediately and then every 100ms
+        forceColorSwatches();
+        setInterval(forceColorSwatches, 100);
+        
+        // Add mutation observer to catch new swatches being added
+        var observer = new MutationObserver(function(mutations) {
+            forceColorSwatches();
+        });
+        
+        // Observe the entire document for changes
+        observer.observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['data-color', 'data-slug', 'data-uid', 'class']
+        });
+        
+        // Activate presets tab on specific events
+        document.addEventListener('click', function(e) {
+            setTimeout(forceColorSwatches, 10);
+            setTimeout(forceColorSwatches, 50);
+            setTimeout(forceColorSwatches, 200);
+        });
+    })();
+    </script>
+    <?php
+}
+add_action('admin_footer', 'gpbi_enqueue_color_fixer_script', 9999);
+add_action('wp_footer', 'gpbi_enqueue_color_fixer_script', 9999);
+
+/**
+ * Ultra-aggressive preset tab activator 
+ */
+function gpbi_activate_presets_tab() {
+    // Only load when builder is active
+    if (!class_exists('FLBuilderModel') || !FLBuilderModel::is_builder_active()) {
+        return;
+    }
+    
+    ?>
+    <script>
+    (function($) {
+        // Force click the presets tab in color pickers
+        function activatePresetsTabs() {
+            // Find all color picker dialogs
+            $('.fl-controls-dialog').each(function() {
+                var $dialog = $(this);
+                
+                // Find the tabs container
+                var $tabs = $dialog.find('.fl-controls-picker-bottom-tabs');
+                if (!$tabs.length) return;
+                
+                // Find the buttons
+                var $buttons = $tabs.find('.fl-control');
+                if (!$buttons.length) return;
+                
+                // Get the last button (presets tab)
+                var $presetsTab = $buttons.last();
+                
+                // Force click if not already selected
+                if (!$presetsTab.hasClass('is-selected')) {
+                    try {
+                        $presetsTab.trigger('click');
+                    } catch (e) {
+                        console.log('Error clicking presets tab:', e);
+                    }
+                }
+                
+                // Additionally, try to force show the presets panel directly
+                var $presetsPanel = $dialog.find('.fl-color-picker-presets');
+                var $otherPanels = $dialog.find('.fl-color-picker-hue, .fl-color-picker-swatches').not('.fl-color-picker-presets');
+                
+                if ($presetsPanel.length) {
+                    $presetsPanel.show();
+                    $otherPanels.hide();
+                    $presetsTab.addClass('is-selected');
+                }
+            });
+        }
+        
+        // Ultra-aggressive approach: run every 50ms
+        var presetInterval = setInterval(activatePresetsTabs, 50);
+        
+        // Also set up traditional event handlers
+        $(document).on('click', '.fl-color-picker-value, .fl-color-picker-color, [data-field-type="color"], .fl-field-color', function() {
+            // Attempt to catch new color pickers with increasing delays
+            setTimeout(activatePresetsTabs, 10);
+            setTimeout(activatePresetsTabs, 50);
+            setTimeout(activatePresetsTabs, 100);
+            setTimeout(activatePresetsTabs, 200);
+            setTimeout(activatePresetsTabs, 500);
+        });
+        
+        // Observer to watch for new dialogs
+        var observer = new MutationObserver(function(mutations) {
+            // For each mutation
+            mutations.forEach(function(mutation) {
+                // If nodes were added
+                if (mutation.addedNodes && mutation.addedNodes.length) {
+                    // Check for dialog nodes
+                    for (var i = 0; i < mutation.addedNodes.length; i++) {
+                        var node = mutation.addedNodes[i];
+                        if ($(node).hasClass('fl-controls-dialog') || $(node).find('.fl-controls-dialog').length) {
+                            // Multiple timeouts to ensure we catch it
+                            setTimeout(activatePresetsTabs, 10);
+                            setTimeout(activatePresetsTabs, 50);
+                            setTimeout(activatePresetsTabs, 100);
+                            setTimeout(activatePresetsTabs, 250);
+                            setTimeout(activatePresetsTabs, 500);
+                        }
+                    }
+                }
+            });
+        });
+        
+        // Start observing
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        // Clean up interval after 60 seconds to prevent constant CPU usage
+        setTimeout(function() {
+            clearInterval(presetInterval);
+            
+            // But continue with a much less frequent check
+            setInterval(activatePresetsTabs, 2000);
+        }, 60000);
+        
+        // Run immediately
+        $(function() {
+            activatePresetsTabs();
+        });
+    })(jQuery);
+    </script>
+    <?php
+}
+add_action('wp_footer', 'gpbi_activate_presets_tab', 9999);
+add_action('admin_footer', 'gpbi_activate_presets_tab', 9999);
 
 /**
  * Modify Redux store data to include GeneratePress colors
@@ -365,9 +667,44 @@ function gpbi_add_gp_colors_to_redux_store($response, $request) {
         return $response;
     }
     
-    $gp_colors = gpbi_get_formatted_gp_colors();
-    if (empty($gp_colors)) {
+    // Get GeneratePress colors
+    if (!function_exists('generate_get_global_colors')) {
         return $response;
+    }
+    
+    $global_colors = generate_get_global_colors();
+    if (empty($global_colors)) {
+        return $response;
+    }
+    
+    // Format colors for Redux store
+    $formatted_colors = [];
+    foreach ($global_colors as $color) {
+        if (empty($color['slug']) || empty($color['color'])) {
+            continue;
+        }
+        
+        $uid = substr(md5($color['slug']), 0, 9);
+        $label = isset($color['name']) ? $color['name'] : $color['slug'];
+        $color_value = isset($color['color']) ? $color['color'] : '';
+        
+        // Skip empty colors
+        if (empty($color_value)) {
+            continue;
+        }
+        
+        // Make sure color value is properly formatted
+        if (!preg_match('/^#/', $color_value)) {
+            $color_value = '#' . $color_value;
+        }
+        
+        $formatted_colors[] = [
+            'uid' => $uid,
+            'label' => $label,
+            'color' => $color_value,
+            'slug' => sanitize_title(strtolower($color['slug'])),
+            'isGlobalColor' => true
+        ];
     }
     
     // Ensure we have the proper structure
@@ -383,271 +720,14 @@ function gpbi_add_gp_colors_to_redux_store($response, $request) {
         $response->color->sets = new stdClass();
     }
     
-    // IMPORTANT: Remove any existing GeneratePress theme colors that might be duplicated
-    if (isset($response->color->sets->theme) && isset($response->color->sets->theme->colors)) {
-        $gp_color_slugs = array_map(function($color) {
-            return $color['slug'] ?? '';
-        }, $gp_colors);
-        
-        $filtered_theme_colors = [];
-        foreach ($response->color->sets->theme->colors as $color) {
-            if (isset($color['label']) && !in_array(sanitize_title(strtolower($color['label'])), $gp_color_slugs)) {
-                $filtered_theme_colors[] = $color;
-            }
-        }
-        
-        $response->color->sets->theme->colors = $filtered_theme_colors;
-    }
-    
     // Add GeneratePress colors as a set
     $response->color->sets->generatepress = array(
         'name' => 'GeneratePress',
-        'colors' => []
+        'colors' => $formatted_colors
     );
     
-    foreach ($gp_colors as $color) {
-        $response->color->sets->generatepress['colors'][] = array(
-            'uid' => $color['uid'],
-            'label' => $color['label'],
-            'color' => $color['color'],
-            'isGlobalColor' => true
-        );
-    }
-    
-    gpbi_debug_log('Added GeneratePress colors to Redux store state');
     return $response;
 }
 
-/**
- * Add color labels to the JS configuration
- */
-function gpbi_add_gp_colors_to_js_config($config) {
-    $gp_colors = gpbi_get_formatted_gp_colors();
-    if (empty($gp_colors)) {
-        return $config;
-    }
-    
-    if (!isset($config['globalColorLabels'])) {
-        $config['globalColorLabels'] = array();
-    }
-    
-    foreach ($gp_colors as $color) {
-        // Show the prefix only in UI, not in the variable name
-        $config['globalColorLabels']['global_color_' . $color['uid']] = '<span class="prefix">GeneratePress -</span>' . 
-            esc_html($color['label']) . 
-            '<span class="swatch" style="background-color:' . 
-            esc_attr($color['color']) . ';"></span>';
-    }
-    
-    gpbi_debug_log('Added GeneratePress color labels to JS config');
-    return $config;
-}
-
-/**
- * Initialize color integration at the right time
- * 
- * This function centralizes all integration initialization
- * to ensure it only happens once and at the right time
- */
-function gpbi_initialize_color_integration() {
-    static $initialized = false;
-    
-    // Only initialize once
-    if ($initialized) {
-        gpbi_debug_log('Color integration already initialized');
-        return;
-    }
-    
-    // Make sure both GeneratePress and Beaver Builder are active and available
-    if (!function_exists('generate_get_global_colors')) {
-        return;
-    }
-    
-    if (!class_exists('FLBuilderGlobalStyles')) {
-        return;
-    }
-    
-    // Register the colors with FLPageData for connection fields
-    gpbi_register_gp_colors_with_flpagedata();
-    
-    // Inject colors to BB's global registry
-    gpbi_inject_colors_to_bb_globals();
-    
-    $initialized = true;
-    gpbi_debug_log('Color integration initialized');
-}
-
-// Run the integration setup at a good time - after both plugins are fully loaded
-add_action('wp', 'gpbi_initialize_color_integration', 20);
-
-// Clear caches when GeneratePress settings are updated
-add_action('generate_settings_updated', 'gpbi_clear_color_caches');
-
-// Also run on admin_init at a later priority to catch admin-side usage
-add_action('admin_init', 'gpbi_initialize_color_integration', 99);
-
 // Add hooks for integration with BB's API
-add_filter('fl_builder_ui_js_config', 'gpbi_add_gp_colors_to_js_config', 10, 1);
 add_filter('rest_pre_echo_response', 'gpbi_add_gp_colors_to_redux_store', 10, 2);
-
-/**
- * Makes the Presets tab the default active tab in Beaver Builder's color picker
- * This improves UX by immediately showing available colors when a color picker opens
- */
-function gpbi_activate_presets_tab() {
-    // Only load when builder is active
-    if (!class_exists('FLBuilderModel') || !FLBuilderModel::is_builder_active()) {
-        return;
-    }
-    
-    ?>
-    <script>
-    (function($) {
-        // Function to click the presets tab in a color picker
-        function clickPresetsTab(container) {
-            if (!container) return;
-            
-            // Find the tabs at the bottom
-            var $tabs = $(container).find('.fl-controls-picker-bottom-tabs');
-            if (!$tabs.length) return;
-            
-            // The tabs are buttons - the last one should be presets
-            var $buttons = $tabs.find('.fl-control');
-            if (!$buttons.length) return;
-            
-            // Get the last button (presets tab)
-            var $presetsTab = $buttons.last();
-            
-            // Only click if not already selected
-            if (!$presetsTab.hasClass('is-selected')) {
-                $presetsTab.trigger('click');
-            }
-        }
-        
-        // Watch for color pickers opening
-        // Method 1: Watch for dialog elements being added
-        $(document).on('click', '.fl-controls-dialog-button', function() {
-            // Give the dialog time to fully render
-            setTimeout(function() {
-                // Find the dialog
-                $('.fl-controls-dialog').each(function() {
-                    clickPresetsTab(this);
-                });
-            }, 50);
-        });
-        
-        // Method 2: Direct MutationObserver approach
-        $(function() {
-            var observer = new MutationObserver(function(mutations) {
-                mutations.forEach(function(mutation) {
-                    if (mutation.addedNodes && mutation.addedNodes.length) {
-                        for (var i = 0; i < mutation.addedNodes.length; i++) {
-                            var node = mutation.addedNodes[i];
-                            
-                            // Check if this is a dialog
-                            if ($(node).hasClass('fl-controls-dialog')) {
-                                // Multiple timeouts to ensure we catch it
-                                setTimeout(function() { clickPresetsTab(node); }, 10);
-                                setTimeout(function() { clickPresetsTab(node); }, 50);
-                            }
-                        }
-                    }
-                });
-            });
-            
-            // Start observing
-            observer.observe(document.body, {
-                childList: true,
-                subtree: true
-            });
-            
-            // Also look for any existing color pickers
-            $('.fl-controls-dialog').each(function() {
-                clickPresetsTab(this);
-            });
-            
-            // Handle iframe content too
-            $(document).on('fl-builder.preview-rendered', function() {
-                if ($('#fl-builder-iframe').length) {
-                    var iframe = document.getElementById('fl-builder-iframe');
-                    if (iframe && iframe.contentDocument) {
-                        // Set up observer in iframe
-                        var iframeObserver = new MutationObserver(function(mutations) {
-                            mutations.forEach(function(mutation) {
-                                if (mutation.addedNodes && mutation.addedNodes.length) {
-                                    for (var i = 0; i < mutation.addedNodes.length; i++) {
-                                        var node = mutation.addedNodes[i];
-                                        if ($(node).hasClass('fl-controls-dialog')) {
-                                            setTimeout(function() { clickPresetsTab(node); }, 10);
-                                            setTimeout(function() { clickPresetsTab(node); }, 50);
-                                        }
-                                    }
-                                }
-                            });
-                        });
-                        
-                        iframeObserver.observe(iframe.contentDocument.body, {
-                            childList: true,
-                            subtree: true
-                        });
-                    }
-                }
-            });
-        });
-        
-    })(jQuery);
-    </script>
-    <?php
-}
-
-// Add to both footer locations - use a lower priority to ensure it runs after BB scripts
-add_action('wp_footer', 'gpbi_activate_presets_tab', 999);
-add_action('admin_footer', 'gpbi_activate_presets_tab', 999);
-
-/**
- * Clear color cache when GeneratePress colors are updated
- */
-function gpbi_clear_color_cache() {
-    delete_transient('gpbi_formatted_colors');
-    set_transient('gpbi_force_color_update', true, 5 * MINUTE_IN_SECONDS);
-}
-add_action('customize_save_after', 'gpbi_clear_color_cache');
-add_action('update_option_generate_settings', 'gpbi_clear_color_cache');
-
-/**
- * Update Beaver Builder's global styles when GeneratePress colors change
- */
-function gpbi_update_bb_global_styles() {
-    // Only proceed if we should update
-    if (!get_transient('gpbi_force_color_update')) {
-        return;
-    }
-    
-    // Get the colors
-    $gp_colors = gpbi_get_formatted_gp_colors();
-    if (empty($gp_colors)) {
-        return;
-    }
-    
-    // Get existing BB global styles settings
-    $bb_settings = FLBuilderGlobalStyles::get_settings(false);
-    
-    // Initialize or reset the colors array
-    if (!isset($bb_settings->colors) || !is_array($bb_settings->colors)) {
-        $bb_settings->colors = [];
-    }
-    
-    // Update colors
-    $bb_settings->colors = $gp_colors;
-    
-    // Save the updated settings
-    FLBuilderGlobalStyles::save_settings($bb_settings);
-    
-    // Clear the force update flag
-    delete_transient('gpbi_force_color_update');
-    
-    // Set a new sync timestamp
-    set_transient('gpbi_colors_synced', true, 12 * HOUR_IN_SECONDS);
-}
-add_action('customize_save_after', 'gpbi_update_bb_global_styles');
-add_action('update_option_generate_settings', 'gpbi_update_bb_global_styles');
