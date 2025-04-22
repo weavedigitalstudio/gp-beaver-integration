@@ -3,7 +3,7 @@
  * Plugin Name:       GP Beaver Integration
  * Plugin URI:        https://github.com/weavedigitalstudio/gp-beaver-integration
  * Description:       Integrates GeneratePress Global Colors and Font Library with Beaver Builder page builder for brand consistency.
- * Version:           1.0.5
+ * Version:           1.0.6
  * Author:            Weave Digital Studio, Gareth Bissland
  * Author URI:        https://weave.co.nz
  * License:           GPL-2.0+
@@ -15,7 +15,7 @@ if (!defined("ABSPATH")) {
 }
 
 // Define plugin constants
-define('GPBI_VERSION', '1.0.5');
+define('GPBI_VERSION', '1.0.6');
 define('GPBI_PLUGIN_FILE', __FILE__);
 define('GPBI_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GPBI_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -295,13 +295,16 @@ function gpbi_enqueue_admin_scripts() {
     $bb29_script_abs_path = plugin_dir_path(__FILE__) . $bb29_script_rel_path;
     $customizer_script_rel_path = "js/customizer-handler.js";
     $customizer_script_abs_path = plugin_dir_path(__FILE__) . $customizer_script_rel_path;
+    $admin_script_rel_path = "js/iris-color-picker.js";
+    $admin_script_abs_path = plugin_dir_path(__FILE__) . $admin_script_rel_path;
 
     // Check if we are in the BB editor or Customizer preview
     $is_bb_active = class_exists('FLBuilderModel') && FLBuilderModel::is_builder_active();
     $is_customizer = is_customize_preview();
+    $is_admin = is_admin();
 
-    // Only proceed if we are in BB editor or Customizer, and GeneratePress functions exist
-    if ((!$is_bb_active && !$is_customizer) || !function_exists("generate_get_global_colors")) {
+    // Only proceed if we are in admin and GeneratePress functions exist
+    if (!$is_admin || !function_exists("generate_get_global_colors")) {
         return;
     }
 
@@ -364,10 +367,26 @@ function gpbi_enqueue_admin_scripts() {
             wp_localize_script("gpbi-customizer", "gpbiCustomizer", [
                 "debug" => defined('GPBI_DEBUG') && GPBI_DEBUG
             ]);
-            
-            // Localize palette for customizer too? Might be needed depending on customizer script.
-            // wp_localize_script("gpbi-customizer", "generatePressPalette", $palette); 
         }
+    }
+    
+    // For all admin screens (including BB editor), enhance the WP Admin iris color picker
+    if ($is_admin && file_exists($admin_script_abs_path)) {
+        // First, make sure the WP color picker is enqueued
+        wp_enqueue_style('wp-color-picker');
+        wp_enqueue_script('wp-color-picker');
+        
+        // Enqueue the standard iris color picker script
+        wp_enqueue_script(
+            "gpbi-iris-color-picker", 
+            plugin_dir_url(__FILE__) . $admin_script_rel_path,
+            ["wp-color-picker", "jquery"],
+            GPBI_VERSION,
+            true 
+        );
+        
+        // Localize palette for the iris color picker
+        wp_localize_script("gpbi-iris-color-picker", "generatePressPalette", $palette);
     }
     
     $already_enqueued = true; 
