@@ -108,6 +108,9 @@ This will output detailed logs to your error log when WP_DEBUG is also enabled. 
 
 ## Changelog
 
+### 1.0.6 - 2025-04-22
+- Fixed GeneratePress colors not showing in the WordPress Admin iris color picker (in last version).
+
 ### 1.0.5 - 2025-04-09
 - Fixed 500 error when saving in WordPress customizer..
 - Fixed colors not initializing properly in Beaver Builder Global Styles interfaces
