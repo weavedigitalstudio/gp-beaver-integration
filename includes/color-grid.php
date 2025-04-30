@@ -14,8 +14,10 @@
  *
  * @package GP_Beaver_Integration
  * @since 0.4.0
- * @version 0.6.0  Color Grid Component
+ * @version 1.0.7  Color Grid Component
  * @changelog
+ * 1.0.7 - Improved styling with better padding, spacing and font sizing
+ * 1.0.6 - Fixed GeneratePress color palette integration with WordPress Admin
  * 0.6.0 - Updated naming to match new plugin name (GP Beaver Integration)
  * 0.4.2 - Updated label styling to use p tag with new font sizes
  * 0.4.1 - Added white background detection and border
@@ -58,7 +60,6 @@ function gpbi_render_color_grid($atts)
 	// Parse shortcode attributes
 	$attributes = shortcode_atts(
 		array(
-			'size'    => '190', // Default to original size
 			'columns' => '4',
 			'names'   => 'true',
 			'values'  => 'true',
@@ -69,11 +70,9 @@ function gpbi_render_color_grid($atts)
 	// Convert string values to appropriate types
 	$show_names = filter_var($attributes['names'], FILTER_VALIDATE_BOOLEAN);
 	$show_values = filter_var($attributes['values'], FILTER_VALIDATE_BOOLEAN);
-	$size = absint($attributes['size']);
 	$columns = absint($attributes['columns']);
 	
 	// Validate minimum values
-	$size = max(50, $size); // Minimum 50px
 	$columns = max(1, $columns); // Minimum 1 column
 	
 	// Bail early if GeneratePress isn't active
@@ -102,9 +101,8 @@ function gpbi_render_color_grid($atts)
 				}
 			}
 
-			.gp-color-box {
-				height: ' . $size . 'px;
-				padding: 20px;
+			html .gp-color-box {
+				padding: 40px 20px;
 				display: flex;
 				flex-direction: column;
 				align-items: center;
@@ -119,22 +117,22 @@ function gpbi_render_color_grid($atts)
 			.gp-color-info-alt {
 				display: flex;
 				flex-direction: column;
-				gap: 12px;
+				gap: 0.6em;
 				align-items: center;
 			}
 
 			.gpbi-color-label {
-				font-size: 130%;
 				font-weight: 700;
 				margin: 0;
 				color: inherit;
 			}
 
-			.gp-color-var-alt,
-			.gp-color-hex-alt {
+			html .gp-color-var-alt,
+			html .gp-color-hex-alt {
 				font-family: ui-monospace, Menlo, Monaco, "Courier New", monospace;
-				font-size: 0.9em;
+				font-size: 80%;
 				background: inherit;
+				padding: 0;
 			}
 		'
 		);

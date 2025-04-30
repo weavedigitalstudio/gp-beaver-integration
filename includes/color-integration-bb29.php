@@ -550,9 +550,15 @@ add_action('admin_footer', 'gpbi_enqueue_color_fixer_script', 9999);
 add_action('wp_footer', 'gpbi_enqueue_color_fixer_script', 9999);
 
 /**
- * Ultra-aggressive preset tab activator 
+ * Add script to activate presets tab in React-based color picker (BB 2.9+)
+ * This uses the inline script approach that's proven to work
  */
 function gpbi_activate_presets_tab() {
+    // Skip if we're using the classic version
+    if (!gpbi_is_new_bb_version()) {
+        return;
+    }
+    
     // Only load when builder is active
     if (!class_exists('FLBuilderModel') || !FLBuilderModel::is_builder_active()) {
         return;
@@ -561,103 +567,77 @@ function gpbi_activate_presets_tab() {
     ?>
     <script>
     (function($) {
-        // Force click the presets tab in color pickers
-        function activatePresetsTabs() {
-            // Find all color picker dialogs
-            $('.fl-controls-dialog').each(function() {
-                var $dialog = $(this);
-                
-                // Find the tabs container
-                var $tabs = $dialog.find('.fl-controls-picker-bottom-tabs');
-                if (!$tabs.length) return;
-                
-                // Find the buttons
-                var $buttons = $tabs.find('.fl-control');
-                if (!$buttons.length) return;
-                
-                // Get the last button (presets tab)
-                var $presetsTab = $buttons.last();
-                
-                // Force click if not already selected
-                if (!$presetsTab.hasClass('is-selected')) {
-                    try {
-                        $presetsTab.trigger('click');
-                    } catch (e) {
-                        console.log('Error clicking presets tab:', e);
-                    }
-                }
-                
-                // Additionally, try to force show the presets panel directly
-                var $presetsPanel = $dialog.find('.fl-color-picker-presets');
-                var $otherPanels = $dialog.find('.fl-color-picker-hue, .fl-color-picker-swatches').not('.fl-color-picker-presets');
-                
-                if ($presetsPanel.length) {
-                    $presetsPanel.show();
-                    $otherPanels.hide();
-                    $presetsTab.addClass('is-selected');
-                }
-            });
+        // Function to click the presets tab in a color picker
+        function clickPresetsTab(container) {
+            if (!container) return;
+            
+            // Find the tabs at the bottom
+            var $tabs = $(container).find('.fl-controls-picker-bottom-tabs');
+            if (!$tabs.length) return;
+            
+            // The tabs are buttons - the last one should be presets
+            var $buttons = $tabs.find('.fl-control');
+            if (!$buttons.length) return;
+            
+            // Get the last button (presets tab)
+            var $presetsTab = $buttons.last();
+            
+            // Only click if not already selected
+            if (!$presetsTab.hasClass('is-selected')) {
+                $presetsTab.trigger('click');
+            }
         }
         
-        // Ultra-aggressive approach: run every 50ms
-        var presetInterval = setInterval(activatePresetsTabs, 50);
-        
-        // Also set up traditional event handlers
-        $(document).on('click', '.fl-color-picker-value, .fl-color-picker-color, [data-field-type="color"], .fl-field-color', function() {
-            // Attempt to catch new color pickers with increasing delays
-            setTimeout(activatePresetsTabs, 10);
-            setTimeout(activatePresetsTabs, 50);
-            setTimeout(activatePresetsTabs, 100);
-            setTimeout(activatePresetsTabs, 200);
-            setTimeout(activatePresetsTabs, 500);
+        // Watch for color pickers opening
+        $(document).on('click', '.fl-controls-dialog-button', function() {
+            // Give the dialog time to fully render
+            setTimeout(function() {
+                // Find the dialog
+                $('.fl-controls-dialog').each(function() {
+                    clickPresetsTab(this);
+                });
+            }, 50);
         });
         
-        // Observer to watch for new dialogs
-        var observer = new MutationObserver(function(mutations) {
-            // For each mutation
-            mutations.forEach(function(mutation) {
-                // If nodes were added
-                if (mutation.addedNodes && mutation.addedNodes.length) {
-                    // Check for dialog nodes
-                    for (var i = 0; i < mutation.addedNodes.length; i++) {
-                        var node = mutation.addedNodes[i];
-                        if ($(node).hasClass('fl-controls-dialog') || $(node).find('.fl-controls-dialog').length) {
-                            // Multiple timeouts to ensure we catch it
-                            setTimeout(activatePresetsTabs, 10);
-                            setTimeout(activatePresetsTabs, 50);
-                            setTimeout(activatePresetsTabs, 100);
-                            setTimeout(activatePresetsTabs, 250);
-                            setTimeout(activatePresetsTabs, 500);
+        // Method 2: Direct MutationObserver approach
+        $(function() {
+            var observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.addedNodes && mutation.addedNodes.length) {
+                        for (var i = 0; i < mutation.addedNodes.length; i++) {
+                            var node = mutation.addedNodes[i];
+                            
+                            // Check if this is a dialog
+                            if ($(node).hasClass('fl-controls-dialog')) {
+                                // Multiple timeouts to ensure we catch it at different stages of rendering
+                                setTimeout(function() { clickPresetsTab(node); }, 10);
+                                setTimeout(function() { clickPresetsTab(node); }, 50);
+                                setTimeout(function() { clickPresetsTab(node); }, 150);
+                            }
                         }
                     }
-                }
+                });
             });
-        });
-        
-        // Start observing
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-        
-        // Clean up interval after 60 seconds to prevent constant CPU usage
-        setTimeout(function() {
-            clearInterval(presetInterval);
             
-            // But continue with a much less frequent check
-            setInterval(activatePresetsTabs, 2000);
-        }, 60000);
-        
-        // Run immediately
-        $(function() {
-            activatePresetsTabs();
+            // Start observing
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            
+            // Also look for any existing color pickers
+            $('.fl-controls-dialog').each(function() {
+                clickPresetsTab(this);
+            });
         });
     })(jQuery);
     </script>
     <?php
 }
-add_action('wp_footer', 'gpbi_activate_presets_tab', 9999);
-add_action('admin_footer', 'gpbi_activate_presets_tab', 9999);
+
+// Add to both footer locations with high priority
+add_action('wp_footer', 'gpbi_activate_presets_tab', 999);
+add_action('admin_footer', 'gpbi_activate_presets_tab', 999);
 
 /**
  * Modify Redux store data to include GeneratePress colors

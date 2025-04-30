@@ -44,14 +44,13 @@ The plugin automatically:
 
 Use the shortcode `[gp_global_color_grid]` to display your color palette. Options:
 
-- `size`: Box size in pixels (default: 190)
 - `columns`: Number of columns (default: 4)
 - `names`: Show color names (default: true)
 - `values`: Show hex values (default: true)
 
 Example:
 ```
-[gp_global_color_grid size="150" columns="3" names="true" values="true"]
+[gp_global_color_grid columns="3" names="true" values="true"]
 ```
 
 This creates a responsive grid showing all your GeneratePress Global Colors with their names, CSS variables, and hex values.
@@ -108,10 +107,19 @@ This will output detailed logs to your error log when WP_DEBUG is also enabled. 
 
 ## Changelog
 
-### 1.0.6 - 2025-04-22
-- Fixed GeneratePress colors not showing in the WordPress Admin iris color picker (in last version).
+### 1.0.8 - 2024-05-01
+- **Fixed** Color picker tab now defaults to presets and still allows normal tab switching
+- **Removed** JS file (color-picker-bb29.js) as functionality moved to main integration file
 
-### 1.0.5 - 2025-04-09
+### 1.0.7 - 2025-04-22
+- Improved color grid shortcode styling with better padding and better readability
+- Removed deprecated size parameter from color grid shortcode
+
+### 1.0.6 - 2025-04-12
+- Fixed GeneratePress color palette not appearing in WordPress Admin iris color picker.
+- Added separate scripts for WordPress Admin and Beaver Builder to prevent conflicts.
+
+### 1.0.4 - 2025-04-09
 - Fixed 500 error when saving in WordPress customizer..
 - Fixed colors not initializing properly in Beaver Builder Global Styles interfaces
 - Fixed compatibility with both Beaver Builder 2.8.x and 2.9+ versions
