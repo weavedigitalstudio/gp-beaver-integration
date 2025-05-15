@@ -107,6 +107,10 @@ This will output detailed logs to your error log when WP_DEBUG is also enabled. 
 
 ## Changelog
 
+### 1.0.9 - 2024-05-16
+- **Fixed** Duplicated colors appearing in Beaver Builder Global Colors UI after updates
+- **Improved** Color sync process to properly update existing colors instead of adding new ones
+
 ### 1.0.8 - 2024-05-01
 - **Fixed** Color picker tab now defaults to presets and still allows normal tab switching
 - **Removed** JS file (color-picker-bb29.js) as functionality moved to main integration file
