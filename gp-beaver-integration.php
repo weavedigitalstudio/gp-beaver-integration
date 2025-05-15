@@ -1,12 +1,19 @@
 <?php
 /**
- * Plugin Name:       GP Beaver Integration
- * Plugin URI:        https://github.com/weavedigitalstudio/gp-beaver-integration
- * Description:       Integrates GeneratePress Global Colors and Font Library with Beaver Builder page builder for brand consistency.
- * Version:           1.0.8
- * Author:            Weave Digital Studio, Gareth Bissland
- * Author URI:        https://weave.co.nz
- * License:           GPL-2.0+
+ * Plugin Name: GP Beaver Integration
+ * Plugin URI: https://github.com/weavedigitalstudio/gp-beaver-integration
+ * Description: Integrates GeneratePress Global Colors and Font Library with Beaver Builder page builder for brand consistency.
+ * Version: 1.0.9
+ * Author: Weave Digital Studio, Gareth Bissland
+  * Author URI: https://weave.co.nz
+ * License: GPL v2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain: gp-beaver-integration
+ * Domain Path: /languages
+ * Requires at least: 5.8
+ * Requires PHP: 7.4
+ * GitHub Plugin URI: weavedigitalstudio/gp-beaver-integration
+ * Primary Branch: main
  */
 
 // Prevent direct access to this file
@@ -15,7 +22,7 @@ if (!defined("ABSPATH")) {
 }
 
 // Define plugin constants
-define('GPBI_VERSION', '1.0.8');
+define('GPBI_VERSION', '1.0.9');
 define('GPBI_PLUGIN_FILE', __FILE__);
 define('GPBI_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GPBI_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -53,11 +60,33 @@ function gpbi_sync_colors_to_bb() {
         return;
     }
     
+    // Check if we're already syncing to prevent duplicate syncs
+    if (get_transient('gpbi_syncing_colors')) {
+        return;
+    }
+    
+    // Set a lock to prevent duplicate syncs
+    set_transient('gpbi_syncing_colors', true, 30); // 30 second lock
+    
     // Check if force update is needed, or run if it's not set
     if (get_transient('gpbi_force_color_update') || !get_transient('gpbi_colors_synced')) {
         gpbi_debug_log('Running color sync via central function');
+        
+        // Clear existing BB global colors first
+        if (class_exists('FLBuilderGlobalStyles')) {
+            $bb_settings = FLBuilderGlobalStyles::get_settings(false);
+            if (is_object($bb_settings) && isset($bb_settings->colors)) {
+                $bb_settings->colors = array();
+                FLBuilderGlobalStyles::save_settings($bb_settings);
+            }
+        }
+        
+        // Now update with fresh colors
         gpbi_update_bb_global_styles();
     }
+    
+    // Clear the sync lock
+    delete_transient('gpbi_syncing_colors');
 }
 
 // Add central hooks for color syncing to avoid duplicates

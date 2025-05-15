@@ -211,6 +211,7 @@ add_filter('fl_wp_core_global_colors', 'gpbi_remove_duplicate_theme_colors', 20)
 
 /**
  * Update Beaver Builder global styles with GeneratePress colors
+ * This is a one-way sync from GP to BB
  */
 function gpbi_update_bb_global_styles() {
     // Check GeneratePress availability
@@ -229,7 +230,32 @@ function gpbi_update_bb_global_styles() {
         return;
     }
     
-    // Format GP colors for BB
+    // Get current BB settings
+    $bb_settings = FLBuilderGlobalStyles::get_settings(false);
+    
+    // Initialize colors array if it doesn't exist
+    if (!isset($bb_settings->colors) || !is_array($bb_settings->colors)) {
+        $bb_settings->colors = [];
+    }
+    
+    // First, identify and remove any existing GP colors
+    $existing_bb_colors = [];
+    foreach ($bb_settings->colors as $bb_color) {
+        $is_gp_color = false;
+        foreach ($global_colors as $gp_color) {
+            if (isset($bb_color['slug']) && 
+                sanitize_title(strtolower($bb_color['slug'])) === sanitize_title(strtolower($gp_color['slug']))) {
+                $is_gp_color = true;
+                break;
+            }
+        }
+        
+        if (!$is_gp_color) {
+            $existing_bb_colors[] = $bb_color;
+        }
+    }
+    
+    // Now format and add the current GP colors
     $formatted_colors = [];
     foreach ($global_colors as $color) {
         if (empty($color['slug']) || empty($color['color'])) {
@@ -259,90 +285,62 @@ function gpbi_update_bb_global_styles() {
         ];
     }
     
-    // Get current BB settings
-    $bb_settings = FLBuilderGlobalStyles::get_settings(false);
+    // Update BB settings with new GP colors and existing BB colors
+    $bb_settings->colors = array_merge($formatted_colors, $existing_bb_colors);
     
-    // Initialize colors array if it doesn't exist
-    if (!isset($bb_settings->colors) || !is_array($bb_settings->colors)) {
-        $bb_settings->colors = [];
-    }
+    // Save the updated settings
+    FLBuilderGlobalStyles::save_settings($bb_settings);
     
-    // Create a new array for the updated colors
-    $new_colors = [];
+    // Clear the force update flag
+    delete_transient('gpbi_force_color_update');
     
-    // First, add all existing BB colors that aren't GP colors
-    foreach ($bb_settings->colors as $bb_color) {
-        $found = false;
-        
-        // Check if this is a GP color by comparing slugs
-        foreach ($formatted_colors as $gp_color) {
-            if (isset($bb_color['slug']) && isset($gp_color['slug']) && 
-                $bb_color['slug'] === $gp_color['slug']) {
-                $found = true;
-                break;
-            }
-        }
-        
-        // If not a GP color, keep it
-        if (!$found) {
-            $new_colors[] = $bb_color;
-        }
-    }
+    // Set a new sync timestamp
+    set_transient('gpbi_colors_synced', true, 12 * HOUR_IN_SECONDS);
     
-    // Now add all GP colors
-    $new_colors = array_merge($new_colors, $formatted_colors);
-    
-    // Update BB settings
-    $bb_settings->colors = $new_colors;
-    
-    // Save settings
-    try {
-        FLBuilderGlobalStyles::save_settings($bb_settings);
-        
-        // Clear BB's asset cache to ensure changes take effect
-        if (class_exists('FLBuilderModel') && method_exists('FLBuilderModel', 'delete_asset_cache_for_all_posts')) {
-            FLBuilderModel::delete_asset_cache_for_all_posts();
-        }
-    } catch (Exception $e) {
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[GP-Beaver Integration] Error saving BB global styles: ' . $e->getMessage());
-        }
-    }
+    // Log the update
+    gpbi_debug_log('Updated BB global colors: ' . count($formatted_colors) . ' GP colors, ' . count($existing_bb_colors) . ' existing BB colors');
 }
 
 /**
  * Clear color caches when customizer settings are saved
  */
 function gpbi_clear_color_caches() {
-    delete_transient('gpbi_formatted_colors');
-    delete_transient('gpbi_colors_synced');
+    // Only clear caches if we're actually updating colors
+    if (!function_exists('generate_get_global_colors')) {
+        return;
+    }
+    
+    // Set force update flag
     set_transient('gpbi_force_color_update', true, 5 * MINUTE_IN_SECONDS);
     
-    // Changed in v1.0.17: Perform cache clearing directly, remove shutdown hook
-    // Run this AFTER the settings save (priority 30)
+    // Clear other caches
+    delete_transient('gpbi_formatted_colors');
+    delete_transient('gpbi_colors_synced');
+    
+    // Run cache clearing after settings save
     add_action('customize_save_after', function() { 
         try {
-            // Clear WP object cache (might be redundant, but safe)
-            if (function_exists('wp_cache_flush')) {
-                wp_cache_flush();
-            }
-            
             // Clear BB's asset cache if possible
             if (class_exists('FLBuilderModel') && method_exists('FLBuilderModel', 'delete_asset_cache_for_all_posts')) {
                 FLBuilderModel::delete_asset_cache_for_all_posts();
             }
-            
         } catch (Exception $e) {
-            // Track the error
             gpbi_track_customizer_error([
-                'type' => 'cache_clear_direct', // Changed type
+                'type' => 'cache_clear_direct',
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
         }
-    }, 30); // Priority 30 for cache clearing
+    }, 30);
 }
-add_action('generate_settings_updated', 'gpbi_clear_color_caches'); // Keep this for GP settings page saves
+
+// Only sync when GP colors change
+add_action('generate_settings_updated', 'gpbi_clear_color_caches');
+add_action('customize_save_after', 'gpbi_clear_color_caches');
+
+// Remove any hooks that might cause reverse sync
+remove_filter('fl_wp_core_global_colors', 'gpbi_add_gp_colors_to_bb_palette');
+remove_filter('fl_wp_core_global_colors', 'gpbi_remove_duplicate_theme_colors', 20);
 
 /**
  * Register GeneratePress colors with FLPageData for better integration
