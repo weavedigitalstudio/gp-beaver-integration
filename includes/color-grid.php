@@ -14,8 +14,9 @@
  *
  * @package GP_Beaver_Integration
  * @since 0.4.0
- * @version 1.0.7  Color Grid Component
+ * @version 1.0.8  Color Grid Component
  * @changelog
+ * 1.0.8 - Text color fixed to match
  * 1.0.7 - Improved styling with better padding, spacing and font sizing
  * 1.0.6 - Fixed GeneratePress color palette integration with WordPress Admin
  * 0.6.0 - Updated naming to match new plugin name (GP Beaver Integration)
