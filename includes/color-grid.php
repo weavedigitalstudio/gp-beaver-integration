@@ -131,7 +131,7 @@ function gpbi_render_color_grid($atts)
 			html .gp-color-hex-alt {
 				font-family: ui-monospace, Menlo, Monaco, "Courier New", monospace;
 				font-size: 80%;
-				background: inherit;
+				color: inherit;
 				padding: 0;
 			}
 		'
