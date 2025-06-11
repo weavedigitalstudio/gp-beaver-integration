@@ -1,27 +1,19 @@
 <?php
 /**
- * GP Beaver Integration - Color Grid Shortcode
+ * Central Color Palette - Color Grid Shortcode
  *
- * This file provides the shortcode functionality for displaying GeneratePress color palettes
+ * This file provides the shortcode functionality for displaying Central Color Palette colors
  * in a visual grid format. It's particularly useful for style guides and documentation.
  *
- * The shortcode [gp_global_color_grid] creates a responsive grid that shows:
- * - Color swatches using your GeneratePress Global Colors
+ * The shortcode [ccp_color_grid] creates a responsive grid that shows:
+ * - Color swatches using your Central Color Palette colors
  * - Color names from your palette
  * - CSS variable names for developer reference
  * - Hex color codes
  *
- *
- * @package GP_Beaver_Integration
- * @since 0.4.0
+ * @package Central_Color_Palette
+ * @since 1.0.0
  * @version 1.0.7  Color Grid Component
- * @changelog
- * 1.0.7 - Improved styling with better padding, spacing and font sizing
- * 1.0.6 - Fixed GeneratePress color palette integration with WordPress Admin
- * 0.6.0 - Updated naming to match new plugin name (GP Beaver Integration)
- * 0.4.2 - Updated label styling to use p tag with new font sizes
- * 0.4.1 - Added white background detection and border
- * 0.4.0 - Initial shortcode implementation
  */
 
 // Prevent direct access to this file
@@ -36,7 +28,7 @@ if (!defined("ABSPATH")) {
  * @param string $hexcolor The hex color code to analyze (with or without #)
  * @return string Returns either black (#000000) or white (#ffffff) hex code
  */
-function gpbi_get_readable_text_color($hexcolor)
+function ccp_get_readable_text_color($hexcolor)
 {
 	$hex = ltrim($hexcolor, "#");
 	$r = hexdec(substr($hex, 0, 2));
@@ -50,12 +42,12 @@ function gpbi_get_readable_text_color($hexcolor)
 
 /**
  * Renders the color grid display
- * Creates a responsive grid showing all GeneratePress Global Colors
+ * Creates a responsive grid showing all Central Color Palette colors
  *
  * @param array $atts Shortcode attributes
  * @return string HTML output of the color grid
  */
-function gpbi_render_color_grid($atts)
+function ccp_render_color_grid($atts)
 {
 	// Parse shortcode attributes
 	$attributes = shortcode_atts(
@@ -74,21 +66,16 @@ function gpbi_render_color_grid($atts)
 	
 	// Validate minimum values
 	$columns = max(1, $columns); // Minimum 1 column
-	
-	// Bail early if GeneratePress isn't active
-	if (!function_exists("generate_get_option")) {
-		return "<p>GeneratePress not active</p>";
-	}
 
 	// Register and enqueue styles if not already done
-	if (!wp_style_is("gp-color-grid-styles")) {
-		wp_register_style("gp-color-grid-styles", false, [], GPBI_VERSION);
+	if (!wp_style_is("ccp-color-grid-styles")) {
+		wp_register_style("ccp-color-grid-styles", false, [], "1.0.7");
 
-		// Define our grid styles - keeping original styling with optional overrides
+		// Define our grid styles - matching GP Beaver Integration styling
 		wp_add_inline_style(
-			"gp-color-grid-styles",
+			"ccp-color-grid-styles",
 			'
-			.gp-color-grid-alt {
+			.ccp-color-grid-alt {
 				display: grid;
 				grid-template-columns: repeat(' . $columns . ', 1fr);
 				gap: 20px;
@@ -96,12 +83,12 @@ function gpbi_render_color_grid($atts)
 			}
 			
 			@media (max-width: 768px) {
-				.gp-color-grid-alt {
+				.ccp-color-grid-alt {
 					grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
 				}
 			}
 
-			html .gp-color-box {
+			html .ccp-color-box {
 				padding: 40px 20px;
 				display: flex;
 				flex-direction: column;
@@ -110,63 +97,63 @@ function gpbi_render_color_grid($atts)
 				text-align: center;
 			}
 
-			.gp-color-box.has-white-bg {
+			.ccp-color-box.has-white-bg {
 				border: 1px solid #000;
 			}
 
-			.gp-color-info-alt {
+			.ccp-color-info-alt {
 				display: flex;
 				flex-direction: column;
 				gap: 0.6em;
 				align-items: center;
 			}
 
-			.gpbi-color-label {
+			.ccp-color-label {
 				font-weight: 700;
 				margin: 0;
 				color: inherit;
 			}
 
-			html .gp-color-var-alt,
-			html .gp-color-hex-alt {
+			html .ccp-color-var-alt,
+			html .ccp-color-hex-alt {
 				font-family: ui-monospace, Menlo, Monaco, "Courier New", monospace;
 				font-size: 80%;
-				background: inherit;
+				color: inherit;
 				padding: 0;
 			}
 		'
 		);
-		wp_enqueue_style("gp-color-grid-styles");
+		wp_enqueue_style("ccp-color-grid-styles");
 	}
 
-	// Get GeneratePress settings once and cache the result
-	static $global_colors = null;
-	if ($global_colors === null) {
-		$gp_settings = get_option("generate_settings");
-		$global_colors = isset($gp_settings["global_colors"])
-			? $gp_settings["global_colors"]
-			: [];
+	// Get Central Color Palette settings once and cache the result
+	static $palette = null;
+	if ($palette === null) {
+		$palette = get_option("kt_color_grid_palette");
+		if (empty($palette) || !is_array($palette)) {
+			$palette = [];
+		}
 	}
 
 	// Start output buffering for clean return
 	ob_start();
 
-	echo '<section class="gp-style-guide-alt">';
-	echo "<h2>" . esc_html__('Global Color Palette', 'gp-beaver-integration') . "</h2>";
-	echo '<div class="gp-color-grid-alt">';
+	echo '<section class="ccp-style-guide-alt">';
+	echo "<h2>" . esc_html__('Global Color Palette', 'central-color-palette') . "</h2>";
+	echo '<div class="ccp-color-grid-alt">';
 
-	if (!empty($global_colors)) {
-		foreach ($global_colors as $color_slug => $color_data) {
+	if (!empty($palette)) {
+		foreach ($palette as $color) {
 			// Skip if we're missing required color data
-			if (empty($color_data["color"]) || empty($color_data["name"])) {
+			if (empty($color["hex"]) || empty($color["name"])) {
 				continue;
 			}
 
 			// Prepare our display values
-			$var_name = "--" . sanitize_title(strtolower($color_data["name"]));
-			$label = esc_html($color_data["name"]);
-			$hex = esc_attr($color_data["color"]);
-			$text_color = gpbi_get_readable_text_color($hex);
+			$var_name = "--" . sanitize_title(strtolower($color["variable"]));
+			$label = esc_html($color["name"]);
+			$hex = esc_attr($color["hex"]);
+			$text_color = ccp_get_readable_text_color($hex);
 
 			// Check if the color is white (case insensitive)
 			$is_white = strtolower($hex) === "#ffffff";
@@ -174,21 +161,21 @@ function gpbi_render_color_grid($atts)
 
 			// Output the color box with all its information
 			printf(
-				'<article class="gp-color-box%5$s" style="background-color: var(%1$s)">
-					<div class="gp-color-info-alt" style="color: %4$s">
+				'<article class="ccp-color-box%5$s" style="background-color: %3$s">
+					<div class="ccp-color-info-alt" style="color: %4$s">
+						%1$s
 						%2$s
-						%3$s
 					</div>
 				</article>',
-				$var_name,
-				$show_names ? '<p class="gpbi-color-label">' . $label . '</p>' : '',
-				$show_values ? '<code class="gp-color-var-alt">var(' . $var_name . ')</code><code class="gp-color-hex-alt">' . $hex . '</code>' : '',
+				$show_names ? '<p class="ccp-color-label">' . $label . '</p>' : '',
+				$show_values ? '<code class="ccp-color-var-alt">var(' . $var_name . ')</code><code class="ccp-color-hex-alt">' . $hex . '</code>' : '',
+				$hex,
 				$text_color,
 				$white_class
 			);
 		}
 	} else {
-		echo "<p>No global colors found in GeneratePress Customizer color settings.</p>";
+		echo "<p>No colors found in Central Color Palette settings.</p>";
 	}
 
 	echo "</div>";
@@ -198,4 +185,4 @@ function gpbi_render_color_grid($atts)
 }
 
 // Register our shortcode with WordPress
-add_shortcode("gp_global_color_grid", "gpbi_render_color_grid");
+add_shortcode("ccp_color_grid", "ccp_render_color_grid");
