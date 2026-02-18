@@ -6,28 +6,24 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-      
+
       - name: Get the version
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-      
+
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '7.4'
+          php-version: '8.1'
           tools: composer
-      
-      # Uncomment if you have Composer dependencies
-      # - name: Install dependencies
-      #   run: composer install --no-dev --optimize-autoloader
-      
+
       - name: Create build directory
         run: mkdir -p build/gp-beaver-integration
-      
+
       - name: Copy plugin files to build directory
         run: |
           rsync -av --exclude='.git' \
@@ -36,6 +32,8 @@ jobs:
                   --exclude='.gitignore' \
                   --exclude='README.md' \
                   --exclude='CHANGELOG.md' \
+                  --exclude='CLAUDE.md' \
+                  --exclude='MODERNISATION-PLAN.md' \
                   --exclude='composer.json' \
                   --exclude='composer.lock' \
                   --exclude='.DS_Store' \
@@ -44,13 +42,15 @@ jobs:
                   --exclude='package.json' \
                   --exclude='package-lock.json' \
                   --exclude='phpcs.xml' \
+                  --exclude='phpcs.xml.dist' \
                   --exclude='phpunit.xml' \
                   --exclude='tests' \
+                  --exclude='screenshots' \
                   . build/gp-beaver-integration/
-      
+
       - name: Create zip file
         run: cd build && zip -r gp-beaver-integration-${{ env.VERSION }}.zip gp-beaver-integration
-      
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v1
         with:
