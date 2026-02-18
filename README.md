@@ -12,7 +12,7 @@ Developed for in-house use at Weave Digital Studio & HumanKind Websites to speed
 
 2. **Font Integration** — Makes all fonts from the GeneratePress Font Library (GP Premium required) available in Beaver Builder's typography controls.
 
-3.**Presets Tab Auto-Activation** — The Presets tab is automatically selected and shown at the front when a colour picker opens, giving immediate access to brand colours. This is how it shoud be.
+3. **Presets Tab Auto-Activation** — The Presets tab is automatically selected and shown at the front when a colour picker opens, giving immediate access to brand colours. This is how it shoud be.
 
 4. **Colour Grid Shortcode** — `[gp_global_color_grid]` renders a responsive visual grid of your colour palette, ideal for style guides and documentation pages.
 
