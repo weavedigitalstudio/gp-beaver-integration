@@ -48,3 +48,6 @@ wp-config.php
 #/wp-content/themes
 /.nova
 .DS_Store
+CLAUDE.md
+.claude/
+screenshots/
