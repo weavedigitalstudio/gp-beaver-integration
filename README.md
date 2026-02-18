@@ -12,13 +12,13 @@ Developed for in-house use at Weave Digital Studio & HumanKind Websites to speed
 
 2. **Font Integration** — Makes all fonts from the GeneratePress Font Library (GP Premium required) available in Beaver Builder's typography controls.
 
-3. **Colour Grid Shortcode** — `[gp_global_color_grid]` renders a responsive visual grid of your colour palette, ideal for style guides and documentation pages.
+3.**Presets Tab Auto-Activation** — The Presets tab is automatically selected and shown at the front when a colour picker opens, giving immediate access to brand colours. This is how it shoud be.
 
-4. **Brand Consistency Controls** — Optional setting to hide the "Add to Palette" button, "Saved Colors" section, and custom colour controls in Beaver Builder's colour picker. Enforces use of the global palette only.
+4. **Colour Grid Shortcode** — `[gp_global_color_grid]` renders a responsive visual grid of your colour palette, ideal for style guides and documentation pages.
 
-5. **Presets Tab Auto-Activation** — The Presets tab is automatically selected when a colour picker opens, giving immediate access to brand colours.
+5. **Brand Consistency Controls** — Optional setting to hide the "Add to Palette" button, "Saved Colors" section, and custom colour controls in Beaver Builder's colour picker. Enforces use of the global palette only.
 
-6. **Font Lockdown** — Removes system fonts and Google Fonts from Beaver Builder by default, enforcing the GeneratePress Font Library as the single font source.
+7. **Font Lockdown** — Removes system fonts and Google Fonts from Beaver Builder by default, enforcing the GeneratePress Font Library as the single font source.
 
 ## Requirements
 
