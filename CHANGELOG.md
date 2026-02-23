@@ -2,6 +2,13 @@
 
 All notable changes to GP Beaver Integration are documented here.
 
+## 2.0.1 — 2026-02-23
+
+### Fixed
+- Restored `--wp--preset--color--*` CSS custom properties output that was incorrectly removed in 2.0.0 as "redundant"
+- GeneratePress outputs short-form variables (`--primary`, `--white`), but Beaver Builder references colours using `--wp--preset--color--{slug}` format — our plugin bridges the two
+- Without this, BB modules using GP global colours would render with missing colours on the frontend
+
 ## 2.0.0 — 2026-02-18
 
 Major modernisation release. Breaking: requires PHP 8.1+, WordPress 6.6+, Beaver Builder 2.9+.
