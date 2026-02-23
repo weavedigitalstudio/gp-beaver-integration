@@ -134,6 +134,40 @@ function clear_bb_asset_cache(): void {
     }
 }
 
+// --- CSS custom properties ---------------------------------------------------
+
+/**
+ * Output GP colours as --wp--preset--color--{slug} CSS custom properties.
+ *
+ * GeneratePress outputs short-form variables (--primary, --white, etc.) but
+ * Beaver Builder stores colour references using the WordPress standard
+ * --wp--preset--color--{slug} format. This bridges the two.
+ */
+function enqueue_color_css_properties(): void {
+    if (!gp_colors_available()) {
+        return;
+    }
+
+    $colors = get_formatted_gp_colors();
+    if (empty($colors)) {
+        return;
+    }
+
+    $css = ':root{';
+    foreach ($colors as $color) {
+        $css .= sprintf(
+            '--wp--preset--color--%s:%s;',
+            esc_attr($color['slug']),
+            esc_attr($color['color'])
+        );
+    }
+    $css .= '}';
+
+    if (wp_style_is('generate-style', 'enqueued')) {
+        wp_add_inline_style('generate-style', $css);
+    }
+}
+
 // --- Filters ----------------------------------------------------------------
 
 /**
@@ -289,6 +323,9 @@ function debug_log(string $message): void {
 add_action('customize_save_after', __NAMESPACE__ . '\\on_gp_colors_changed', 30);
 add_action('update_option_generate_settings', __NAMESPACE__ . '\\on_gp_colors_changed', 30);
 add_action('generate_settings_updated', __NAMESPACE__ . '\\on_gp_colors_changed', 30);
+
+// CSS custom properties for BB compatibility.
+add_action('wp_enqueue_scripts', __NAMESPACE__ . '\\enqueue_color_css_properties', 20);
 
 // BB colour filter (official API for Presets tab).
 add_filter('fl_wp_core_global_colors', __NAMESPACE__ . '\\filter_bb_wp_core_colors');
