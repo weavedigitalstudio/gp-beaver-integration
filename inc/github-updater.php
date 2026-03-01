@@ -132,11 +132,15 @@ final class GitHubUpdater {
 
         if (version_compare($latest, $current, '>')) {
             $transient->response[$this->basename] = (object) [
-                'slug'        => dirname($this->basename),
-                'package'     => $repo_info->zipball_url,
-                'new_version' => $latest,
-                'tested'      => get_bloginfo('version'),
-                'icons'       => ['1x' => self::ICON_SMALL, '2x' => self::ICON_LARGE],
+                'slug'         => dirname($this->basename),
+                'plugin'       => $this->basename,
+                'package'      => $repo_info->zipball_url,
+                'new_version'  => $latest,
+                'url'          => sprintf('https://github.com/%s/%s', $this->github_username, $this->github_repo),
+                'tested'       => get_bloginfo('version'),
+                'requires_php' => $plugin_data['RequiresPHP'] ?? '8.1',
+                'requires'     => $plugin_data['RequiresWP'] ?? '6.6',
+                'icons'        => ['1x' => self::ICON_SMALL, '2x' => self::ICON_LARGE],
             ];
         } else {
             unset($transient->response[$this->basename]);
@@ -178,6 +182,8 @@ final class GitHubUpdater {
         $info->author         = $plugin_data['Author'] ?? 'Weave Digital Studio';
         $info->author_profile = $plugin_data['AuthorURI'] ?? 'https://weave.co.nz';
         $info->tested         = get_bloginfo('version');
+        $info->requires_php   = $plugin_data['RequiresPHP'] ?? '8.1';
+        $info->requires       = $plugin_data['RequiresWP'] ?? '6.6';
         $info->last_updated   = $repo_info->published_at ?? '';
         $info->sections       = [
             'description' => $plugin_data['Description'] ?? 'Integrates GeneratePress with Beaver Builder for consistent branding by synchronising colours and fonts.',
@@ -190,12 +196,23 @@ final class GitHubUpdater {
     }
 
     /**
+     * Rename the extracted directory to match the plugin's install directory.
+     *
+     * Only runs when this specific plugin is being updated. Without the
+     * $hook_extra check this would fire for every plugin install/update
+     * and corrupt other plugins' files.
+     *
      * @param bool|\WP_Error $response
      * @param array<string, mixed> $hook_extra
      * @param array<string, mixed> $result
      * @return array<string, mixed>
      */
     public function after_install(mixed $response, array $hook_extra, array $result): array {
+        // Only act when *this* plugin is being updated.
+        if (!isset($hook_extra['plugin']) || $hook_extra['plugin'] !== $this->basename) {
+            return $result;
+        }
+
         global $wp_filesystem;
 
         $install_directory = plugin_dir_path($this->file);

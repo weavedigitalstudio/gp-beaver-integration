@@ -2,6 +2,14 @@
 
 All notable changes to GP Beaver Integration are documented here.
 
+## 2.0.2 — 2026-03-01
+
+### Fixed
+- GitHub updater `after_install()` running for all plugin updates, not just this one — could corrupt plugin files when updating any other plugin
+- Missing `plugin` key in update transient response, preventing WordPress from properly mapping the update
+- Added `requires_php` and `requires` to update response so WordPress can warn sites on incompatible PHP/WP versions before attempting the update
+- Added `url` to update response for "View details" link
+
 ## 2.0.1 — 2026-02-23
 
 ### Fixed
