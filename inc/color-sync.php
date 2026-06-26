@@ -10,10 +10,29 @@ const CACHE_COLORS_SYNCED    = 'gpbi_colors_synced';
 const CACHE_FORCE_UPDATE     = 'gpbi_force_color_update';
 
 /**
+ * Beaver Builder version that added the native "Default to Presets Tab" setting.
+ *
+ * From this version on, BB defaults the colour picker to the Presets tab itself,
+ * so we hand off to core (see maybe_seed_presets_tab_default) and retire the JS
+ * tab-clicking fallback. Gated on '2.11-beta' rather than '2.11' on purpose:
+ * version_compare() treats '2.11-beta.4' as *less than* '2.11', so a '2.11' gate
+ * would miss the public beta. This way the hand-off also activates on the betas.
+ */
+const BB_NATIVE_PRESETS_TAB_VERSION = '2.11-beta';
+
+/**
  * Check whether GeneratePress global colours are available.
  */
 function gp_colors_available(): bool {
     return function_exists('generate_get_global_colors');
+}
+
+/**
+ * Whether the active Beaver Builder handles the Presets-tab default natively.
+ */
+function bb_has_native_presets_tab(): bool {
+    return defined('FL_BUILDER_VERSION')
+        && version_compare(FL_BUILDER_VERSION, BB_NATIVE_PRESETS_TAB_VERSION, '>=');
 }
 
 /**
@@ -52,8 +71,12 @@ function get_formatted_gp_colors(): array {
             continue;
         }
 
+        // Only prepend '#' to a bare hex value. GP's colour picker has an alpha
+        // channel, so a global colour can be rgb()/rgba()/hsl() — those must pass
+        // through untouched. Blindly prefixing would corrupt them into
+        // '#rgba(0,0,0,.5)' and poison both BB Global Styles and the CSS vars.
         $color_value = $color['color'];
-        if (!str_starts_with($color_value, '#')) {
+        if ($color_value[0] !== '#' && preg_match('/^[a-fA-F0-9]{3,8}$/', $color_value)) {
             $color_value = '#' . $color_value;
         }
 
@@ -236,6 +259,13 @@ function activate_presets_tab(): void {
         return;
     }
 
+    // Beaver Builder 2.11+ opens the picker on the Presets tab natively
+    // (seeded by maybe_seed_presets_tab_default), so this JS fallback is only
+    // needed for older builders.
+    if (bb_has_native_presets_tab()) {
+        return;
+    }
+
     ?>
     <script>
     (function() {
@@ -277,6 +307,35 @@ function activate_presets_tab(): void {
     <?php
 }
 
+// --- Native Presets tab default (BB 2.11+) -----------------------------------
+
+/**
+ * Seed Beaver Builder's native "Default to Presets Tab" setting once on BB 2.11+.
+ *
+ * BB 2.11 added the option `_fl_builder_default_presets_tab` (default off). We
+ * switch it on a single time so sites keep the presets-first behaviour once the
+ * legacy JS fallback retires. After seeding we never touch it again, so an admin
+ * can turn it off in Builder > Tools > Global Settings > Advanced and we respect
+ * that. If BB is not yet 2.11 we do nothing and try again on a later request,
+ * so the option gets seeded when the site eventually updates Beaver Builder.
+ */
+function maybe_seed_presets_tab_default(): void {
+    if (get_option('gpbi_presets_tab_seeded')) {
+        return;
+    }
+
+    if (!bb_has_native_presets_tab()) {
+        return;
+    }
+
+    // Only seed when the admin has not already chosen a value (false = unset).
+    if (false === get_option('_fl_builder_default_presets_tab', false)) {
+        update_option('_fl_builder_default_presets_tab', 1);
+    }
+
+    update_option('gpbi_presets_tab_seeded', 1);
+}
+
 // --- Palette restriction CSS -------------------------------------------------
 
 /**
@@ -292,6 +351,7 @@ function output_palette_restriction_css(): void {
         return;
     }
 
+    // Legacy Beaver Builder (< 2.11) colour picker markup.
     $css = '
         .fl-color-picker-ui .fl-color-picker-preset-add,
         .fl-color-picker-ui .fl-color-picker-presets-list .fl-color-picker-preset-remove,
@@ -300,6 +360,23 @@ function output_palette_restriction_css(): void {
             display: none !important;
         }
     ';
+
+    // Beaver Builder 2.11 rebuilt the colour picker in React; the class names
+    // changed, so the legacy selectors above no longer match. These target the
+    // "create / pick a custom colour" affordances (toolbar add button, eyedropper
+    // and hex input) so only the global presets remain usable.
+    //
+    // TODO(verify-on-2.11): derived from the 2.11-beta.4 bundle, NOT yet confirmed
+    // against a live 2.11 site. Re-check these selectors hide the right controls
+    // (and nothing else) before relying on the restriction feature on BB 2.11.
+    if (bb_has_native_presets_tab()) {
+        $css .= '
+            .fl-color-picker-toolbar .fl-controls-color-eyedropper,
+            .fl-controls-color-input {
+                display: none !important;
+            }
+        ';
+    }
 
     echo '<style id="gpbi-color-restrict">' . $css . '</style>';
 }
@@ -334,7 +411,8 @@ add_filter('fl_wp_core_global_colors', __NAMESPACE__ . '\\filter_bb_wp_core_colo
 add_action('wp', __NAMESPACE__ . '\\register_with_fl_page_data', 20);
 add_action('admin_init', __NAMESPACE__ . '\\register_with_fl_page_data', 20);
 
-// Presets tab auto-activation.
+// Presets tab — seed BB's native setting on 2.11+, JS fallback on older builders.
+add_action('admin_init', __NAMESPACE__ . '\\maybe_seed_presets_tab_default');
 add_action('wp_footer', __NAMESPACE__ . '\\activate_presets_tab', 999);
 add_action('admin_footer', __NAMESPACE__ . '\\activate_presets_tab', 999);
 

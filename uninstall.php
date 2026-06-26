@@ -3,8 +3,9 @@ declare(strict_types=1);
 
 defined('WP_UNINSTALL_PLUGIN') || exit;
 
-// Remove plugin option.
+// Remove plugin options.
 delete_option('gpbi_settings');
+delete_option('gpbi_presets_tab_seeded');
 
 // Remove all transients.
 $transients = [

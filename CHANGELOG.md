@@ -2,6 +2,22 @@
 
 All notable changes to GP Beaver Integration are documented here.
 
+## 2.1.0 — 2026-06-26
+
+Gracefully hands the "Presets tab first" behaviour over to Beaver Builder's own setting, introduced in BB 2.11.
+
+### Changed
+- On Beaver Builder 2.11+, the plugin now switches on BB's native "Default to Presets Tab" setting instead of forcing it with JavaScript. The brittle `MutationObserver` tab-clicking hack is retired on 2.11+ and kept only as a fallback for older builders.
+- BB's native setting is seeded once and left editable — an admin can turn it off in *Builder > Tools > Global Settings > Advanced* and the plugin respects that.
+- Activates from the 2.11 betas onward (`2.11-beta`), so it works on the public beta as well as the final release. Sites on BB 2.9 / 2.10 are unaffected and keep the existing behaviour.
+
+### Fixed
+- GeneratePress global colours stored as `rgb()` / `rgba()` / `hsl()` (the GP colour picker has an alpha channel) are no longer corrupted by a blind `#` prefix when synced to BB Global Styles or output as CSS custom properties. Only bare hex values now get the `#` added.
+
+### Notes
+- The optional "restrict colours" feature is **not** replaced by BB 2.11. Its CSS selectors were updated best-effort for 2.11's rebuilt React colour picker, but need verifying on a live 2.11 site (see the `TODO(verify-on-2.11)` note in `inc/color-sync.php`).
+- BB 2.11 also natively fixes Global Colours not appearing in the Multiple Backgrounds field, which previously required a separate patch.
+
 ## 2.0.2 — 2026-03-01
 
 ### Fixed
