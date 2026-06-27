@@ -2,6 +2,13 @@
 
 All notable changes to GP Beaver Integration are documented here.
 
+## 2.1.1 — 2026-06-28
+
+### Fixed
+- On BB 2.11+, the "Default to Presets Tab" setting was never actually switched on. The 2.1.0 seeder only wrote the option if it had *never* existed, but Beaver Builder writes it as `0` the moment its Advanced settings are saved, so the seeder silently skipped — and still flagged itself as done, so it never retried. The colour picker kept opening on the custom-colour tab.
+- The seeder now force-enables the option once instead of guarding on its presence, and verification against BB 2.11 source confirmed both read paths (`class-fl-builder-config.php`, `class-fl-controls.php`) use a plain `get_option('_fl_builder_default_presets_tab')` expecting `'1'`/`1`.
+- The `gpbi_presets_tab_seeded` flag is now version-aware, so sites already updated to the broken 2.1.0 re-seed automatically. An admin can still turn the setting off afterwards in *Builder > Tools > Global Settings > Advanced* and the plugin respects that.
+
 ## 2.1.0 — 2026-06-26
 
 Gracefully hands the "Presets tab first" behaviour over to Beaver Builder's own setting, introduced in BB 2.11.

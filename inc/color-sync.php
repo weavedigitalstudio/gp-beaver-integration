@@ -21,6 +21,18 @@ const CACHE_FORCE_UPDATE     = 'gpbi_force_color_update';
 const BB_NATIVE_PRESETS_TAB_VERSION = '2.11-beta';
 
 /**
+ * Seeding-logic version for the native Presets-tab default.
+ *
+ * Stored in the `gpbi_presets_tab_seeded` option. Bump this when the seeding
+ * logic changes so sites that ran an earlier (buggy) version re-seed once.
+ * v1 used a `false === get_option(...)` guard that silently skipped seeding
+ * whenever Beaver Builder had already written the option as 0 — which it does
+ * the moment its Advanced settings are saved — so those sites never got
+ * presets-first switched on. v2 drops that guard and re-seeds them.
+ */
+const PRESETS_SEED_VERSION = 2;
+
+/**
  * Check whether GeneratePress global colours are available.
  */
 function gp_colors_available(): bool {
@@ -312,28 +324,34 @@ function activate_presets_tab(): void {
 /**
  * Seed Beaver Builder's native "Default to Presets Tab" setting once on BB 2.11+.
  *
- * BB 2.11 added the option `_fl_builder_default_presets_tab` (default off). We
- * switch it on a single time so sites keep the presets-first behaviour once the
- * legacy JS fallback retires. After seeding we never touch it again, so an admin
- * can turn it off in Builder > Tools > Global Settings > Advanced and we respect
- * that. If BB is not yet 2.11 we do nothing and try again on a later request,
- * so the option gets seeded when the site eventually updates Beaver Builder.
+ * BB 2.11 added the option `_fl_builder_default_presets_tab` (default off) and
+ * reads it via plain get_option() in class-fl-builder-config.php and
+ * class-fl-controls.php, defaulting the colour picker to the Presets tab when
+ * it equals '1'/1. We switch it on a single time so sites keep the
+ * presets-first behaviour once the legacy JS fallback retires.
+ *
+ * We force the value rather than only seeding an "unset" option: BB writes the
+ * option as 0 the moment its Advanced settings are saved, so a presence check
+ * would skip every site that had ever opened that screen. After seeding we
+ * never touch it again, so an admin can still turn it off in
+ * Builder > Tools > Global Settings > Advanced and we respect that.
+ *
+ * The `gpbi_presets_tab_seeded` flag stores the seeding-logic version
+ * (PRESETS_SEED_VERSION), so a bump re-seeds sites that ran an earlier build.
+ * If BB is not yet 2.11 we do nothing and try again on a later request, so the
+ * option gets seeded when the site eventually updates Beaver Builder.
  */
 function maybe_seed_presets_tab_default(): void {
-    if (get_option('gpbi_presets_tab_seeded')) {
-        return;
-    }
-
     if (!bb_has_native_presets_tab()) {
         return;
     }
 
-    // Only seed when the admin has not already chosen a value (false = unset).
-    if (false === get_option('_fl_builder_default_presets_tab', false)) {
-        update_option('_fl_builder_default_presets_tab', 1);
+    if ((int) get_option('gpbi_presets_tab_seeded') >= PRESETS_SEED_VERSION) {
+        return;
     }
 
-    update_option('gpbi_presets_tab_seeded', 1);
+    update_option('_fl_builder_default_presets_tab', 1);
+    update_option('gpbi_presets_tab_seeded', PRESETS_SEED_VERSION);
 }
 
 // --- Palette restriction CSS -------------------------------------------------
