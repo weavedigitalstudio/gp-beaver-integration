@@ -2,6 +2,11 @@
 
 All notable changes to GP Beaver Integration are documented here.
 
+## 2.1.2 — 2026-06-29
+
+### Changed
+- Documentation only: tidied the README feature list — fixed the numbering, trimmed the Presets-tab section now that Beaver Builder 2.11 owns that behaviour, and clarified that the font lockdown is always on. No functional change from 2.1.1.
+
 ## 2.1.1 — 2026-06-28
 
 ### Fixed
