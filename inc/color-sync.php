@@ -52,9 +52,19 @@ function bb_has_native_presets_tab(): bool {
  *
  * Returns an array of [ uid, label, color, slug, isGlobalColor ] entries.
  * Uses a static cache per-request and a 12-hour transient.
+ *
+ * @param bool $force_refresh Discard both caches and rebuild from GP settings.
+ *                            Needed after a Customizer save: admin_init has
+ *                            already primed the static cache with the pre-save
+ *                            palette earlier in the same request.
  */
-function get_formatted_gp_colors(): array {
+function get_formatted_gp_colors(bool $force_refresh = false): array {
     static $cached = null;
+
+    if ($force_refresh) {
+        $cached = null;
+        delete_transient(CACHE_FORMATTED_COLORS);
+    }
 
     if ($cached !== null) {
         return $cached;
@@ -110,10 +120,15 @@ function get_formatted_gp_colors(): array {
  * Invalidate both the static and transient colour caches.
  */
 function invalidate_color_cache(): void {
-    // Reset static cache by clearing transient — next call rebuilds both.
-    delete_transient(CACHE_FORMATTED_COLORS);
     delete_transient(CACHE_COLORS_SYNCED);
     delete_transient(CACHE_FORCE_UPDATE);
+
+    // Rebuild from fresh GP data, discarding the per-request static cache.
+    // A Customizer save arrives via admin-ajax, where our admin_init callbacks
+    // have already primed the static cache with the PRE-save palette; deleting
+    // the transient alone left that stale copy in place, so the sync that
+    // follows pushed old colours into BB and new colours never arrived.
+    get_formatted_gp_colors(true);
 }
 
 /**
@@ -123,41 +138,81 @@ function invalidate_color_cache(): void {
  */
 function on_gp_colors_changed(): void {
     invalidate_color_cache();
-    sync_to_bb_global_styles();
-    clear_bb_asset_cache();
+    if (sync_to_bb_global_styles()) {
+        clear_bb_asset_cache();
+    }
+}
+
+/**
+ * Self-healing re-sync safety net.
+ *
+ * The synced flag expires after 12 hours, so any sync that was missed (cache
+ * flush, GP changed while BB was deactivated, a failed save) is repaired on
+ * the next admin request instead of waiting for the next GP colour change.
+ * The change detection in sync_to_bb_global_styles() makes the routine case
+ * a read-only no-op.
+ */
+function maybe_resync(): void {
+    if (get_transient(CACHE_COLORS_SYNCED)) {
+        return;
+    }
+
+    if (sync_to_bb_global_styles()) {
+        clear_bb_asset_cache();
+    }
 }
 
 /**
  * One-way sync: push GP colours into BB Global Styles.
+ *
+ * @return bool Whether BB's stored colours actually changed.
  */
-function sync_to_bb_global_styles(): void {
+function sync_to_bb_global_styles(): bool {
     if (!gp_colors_available() || !class_exists('FLBuilderGlobalStyles')) {
-        return;
+        return false;
     }
 
     $bb_settings = \FLBuilderGlobalStyles::get_settings(false);
     if (!is_object($bb_settings)) {
-        return;
+        return false;
     }
 
-    // Separate existing non-GP colours.
-    $gp_slugs = array_column(get_formatted_gp_colors(), 'slug');
+    // Separate existing non-GP colours. A previously synced GP colour is
+    // recognised by its slug OR its uid — the uid is deterministic
+    // (md5 of the slug) and is part of BB's own colour schema, so it survives
+    // BB's save/sanitise round-trip even if the custom slug key ever gets
+    // stripped. Matching on slug alone re-added the whole GP set as
+    // duplicates when that happened (the 1.x duplicates bug).
+    $gp_colors = get_formatted_gp_colors();
+    $gp_slugs  = array_column($gp_colors, 'slug');
+    $gp_uids   = array_column($gp_colors, 'uid');
+    $current   = (isset($bb_settings->colors) && is_array($bb_settings->colors)) ? $bb_settings->colors : [];
     $existing  = [];
-    if (isset($bb_settings->colors) && is_array($bb_settings->colors)) {
-        foreach ($bb_settings->colors as $bb_color) {
-            if (isset($bb_color['slug']) && in_array(sanitize_title(strtolower($bb_color['slug'])), $gp_slugs, true)) {
-                continue;
-            }
-            $existing[] = $bb_color;
+    foreach ($current as $bb_color) {
+        if (isset($bb_color['slug']) && in_array(sanitize_title(strtolower($bb_color['slug'])), $gp_slugs, true)) {
+            continue;
         }
+        if (isset($bb_color['uid']) && in_array($bb_color['uid'], $gp_uids, true)) {
+            continue;
+        }
+        $existing[] = $bb_color;
     }
 
-    $bb_settings->colors = array_merge(get_formatted_gp_colors(), $existing);
+    $merged = array_merge($gp_colors, $existing);
+
+    // Loose comparison: BB's save/load round-trip can juggle scalar types.
+    if ($current == $merged) {
+        set_transient(CACHE_COLORS_SYNCED, true, 12 * HOUR_IN_SECONDS);
+        return false;
+    }
+
+    $bb_settings->colors = $merged;
     \FLBuilderGlobalStyles::save_settings($bb_settings);
 
     set_transient(CACHE_COLORS_SYNCED, true, 12 * HOUR_IN_SECONDS);
 
-    debug_log('Synced ' . count(get_formatted_gp_colors()) . ' GP colours to BB Global Styles');
+    debug_log('Synced ' . count($gp_colors) . ' GP colours to BB Global Styles');
+    return true;
 }
 
 /**
@@ -418,6 +473,9 @@ function debug_log(string $message): void {
 add_action('customize_save_after', __NAMESPACE__ . '\\on_gp_colors_changed', 30);
 add_action('update_option_generate_settings', __NAMESPACE__ . '\\on_gp_colors_changed', 30);
 add_action('generate_settings_updated', __NAMESPACE__ . '\\on_gp_colors_changed', 30);
+
+// Self-healing safety net — repairs any missed sync within 12 hours.
+add_action('admin_init', __NAMESPACE__ . '\\maybe_resync', 30);
 
 // CSS custom properties for BB compatibility.
 add_action('wp_enqueue_scripts', __NAMESPACE__ . '\\enqueue_color_css_properties', 20);

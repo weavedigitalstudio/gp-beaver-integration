@@ -2,10 +2,20 @@
 
 All notable changes to GP Beaver Integration are documented here.
 
+## 2.1.3 — 2026-07-15
+
+### Fixed
+- New GP colours saved in the Customizer didn't reach BB Global Styles until a second save (stale per-request cache).
+
+### Added
+- Self-healing re-sync: a missed sync repairs itself within 12 hours.
+- BB Global Styles are only written when the colour set actually changed.
+- Synced GP colours are matched by `uid` as well as `slug`, so repeated syncs can't create duplicates.
+
 ## 2.1.2 — 2026-06-29
 
 ### Changed
-- Documentation only: tidied the README feature list — fixed the numbering, trimmed the Presets-tab section now that Beaver Builder 2.11 owns that behaviour, and clarified that the font lockdown is always on. No functional change from 2.1.1.
+- Documentation tidy-up only. No functional change from 2.1.1.
 
 ## 2.1.1 — 2026-06-28
 
