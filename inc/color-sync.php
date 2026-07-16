@@ -10,6 +10,18 @@ const CACHE_COLORS_SYNCED    = 'gpbi_colors_synced';
 const CACHE_FORCE_UPDATE     = 'gpbi_force_color_update';
 
 /**
+ * Option recording the uids of GP colours we last pushed into BB.
+ *
+ * This is how a DELETION propagates: a colour removed from GP no longer
+ * matches the current GP set, so matching against that set alone cannot
+ * distinguish "the user's own BB colour" from "a GP colour we synced that
+ * has since been deleted" — and the sync preserved deleted GP colours in
+ * BB forever (found on testing.firehawk, 16 Jul 2026). An option, not a
+ * transient: losing it silently re-orphans deleted colours.
+ */
+const SYNCED_UIDS_OPTION = 'gpbi_synced_gp_uids';
+
+/**
  * Beaver Builder version that added the native "Default to Presets Tab" setting.
  *
  * From this version on, BB defaults the colour picker to the Presets tab itself,
@@ -37,6 +49,27 @@ const PRESETS_SEED_VERSION = 2;
  */
 function gp_colors_available(): bool {
     return function_exists('generate_get_global_colors');
+}
+
+/**
+ * Whether a BB colour entry has the shape of a colour we once synced from
+ * GP: it still carries our isGlobalColor tag, or its uid is the
+ * deterministic md5-of-slug that get_formatted_gp_colors() generates.
+ * BB-native colours can't false-match — their uids are random and they
+ * never carry the tag. Used as the backfill for sites that synced before
+ * SYNCED_UIDS_OPTION existed.
+ *
+ * @param array $bb_color One entry from BB Global Styles colours.
+ */
+function is_synced_gp_shape(array $bb_color): bool {
+    if (!empty($bb_color['isGlobalColor'])) {
+        return true;
+    }
+
+    $slug = isset($bb_color['slug']) ? sanitize_title(strtolower((string) $bb_color['slug'])) : '';
+    $uid  = (string) ($bb_color['uid'] ?? '');
+
+    return '' !== $slug && '' !== $uid && substr(md5($slug), 0, 9) === $uid;
 }
 
 /**
@@ -178,14 +211,23 @@ function sync_to_bb_global_styles(): bool {
     }
 
     // Separate existing non-GP colours. A previously synced GP colour is
-    // recognised by its slug OR its uid — the uid is deterministic
-    // (md5 of the slug) and is part of BB's own colour schema, so it survives
-    // BB's save/sanitise round-trip even if the custom slug key ever gets
-    // stripped. Matching on slug alone re-added the whole GP set as
-    // duplicates when that happened (the 1.x duplicates bug).
+    // recognised three ways, because matching against the CURRENT GP set is
+    // not enough — a colour deleted from GP is exactly the one that no longer
+    // matches it, so slug/uid matching alone preserved deleted GP colours in
+    // BB forever while additions synced fine:
+    //   1. slug or uid in the current GP set (refreshed by the merge below;
+    //      uid is deterministic md5-of-slug and part of BB's own schema, so
+    //      it survives BB's save/sanitise round-trip even if the custom slug
+    //      key gets stripped — the 1.x duplicates bug);
+    //   2. uid in the recorded list of previously synced uids — the reliable
+    //      deletion signal;
+    //   3. GP shape (is_synced_gp_shape) — backfill for colours synced before
+    //      the recorded list existed.
+    // Whatever remains is genuinely the user's own BB colour and survives.
     $gp_colors = get_formatted_gp_colors();
     $gp_slugs  = array_column($gp_colors, 'slug');
     $gp_uids   = array_column($gp_colors, 'uid');
+    $previously_synced = array_map('strval', (array) get_option(SYNCED_UIDS_OPTION, []));
     $current   = (isset($bb_settings->colors) && is_array($bb_settings->colors)) ? $bb_settings->colors : [];
     $existing  = [];
     foreach ($current as $bb_color) {
@@ -195,10 +237,22 @@ function sync_to_bb_global_styles(): bool {
         if (isset($bb_color['uid']) && in_array($bb_color['uid'], $gp_uids, true)) {
             continue;
         }
+        if (isset($bb_color['uid']) && in_array((string) $bb_color['uid'], $previously_synced, true)) {
+            continue;
+        }
+        if (is_array($bb_color) && is_synced_gp_shape($bb_color)) {
+            continue;
+        }
         $existing[] = $bb_color;
     }
 
     $merged = array_merge($gp_colors, $existing);
+
+    // Record what this sync pushed, so the next one can tell a deleted GP
+    // colour from a user's own BB colour. Recorded on the no-change path too:
+    // the backfill case (heuristic matched, list empty) changes nothing in BB
+    // but must still be remembered.
+    update_option(SYNCED_UIDS_OPTION, array_map('strval', $gp_uids), false);
 
     // Loose comparison: BB's save/load round-trip can juggle scalar types.
     if ($current == $merged) {

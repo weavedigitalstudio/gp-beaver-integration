@@ -2,6 +2,11 @@
 
 All notable changes to GP Beaver Integration are documented here.
 
+## 2.1.4 — 2026-07-16
+
+### Fixed
+- **Deleting a GP global colour never removed it from BB Global Styles.** The sync recognised previously synced colours by matching against the *current* GP set — and a deleted colour is exactly the one no longer in that set, so its stale BB entry was misread as a user-created BB colour and preserved forever (additions synced fine, deletions never did; found on the Firehawk testing master). The sync now records the uids it pushes in the `gpbi_synced_gp_uids` option and drops any BB entry from that list which has left the GP set, with a shape heuristic (`isGlobalColor` tag or deterministic md5-of-slug uid) as backfill for colours synced before the list existed. Genuinely user-created BB colours are untouched — their uids are random, never recorded, and never match the heuristic.
+
 ## 2.1.3 — 2026-07-15
 
 ### Fixed
