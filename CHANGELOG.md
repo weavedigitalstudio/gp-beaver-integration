@@ -2,6 +2,18 @@
 
 All notable changes to GP Beaver Integration are documented here.
 
+## 2.1.6 - 2026-09-15
+
+### Fixed
+- The GitHub updater was only started inside wp-admin, and only read the
+  plugin's header there, so WordPress's twice-daily background update check
+  skipped the plugin entirely. An update only appeared once someone opened the
+  Plugins or Updates screen, and anything checking for updates outside wp-admin
+  never saw one. The updater now starts and reads the header in every context.
+- "Check again" on Dashboard > Updates now clears the cached GitHub release, so
+  a new release shows straight away instead of after the 4 hour cache expires.
+  Same fixes applied to weave-style-guide and weave-style-guide-gp.
+
 ## 2.1.5 — 2026-08-21
 
 ### Fixed

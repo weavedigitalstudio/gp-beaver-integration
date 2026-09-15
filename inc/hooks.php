@@ -38,12 +38,12 @@ function add_settings_link(array $links): array {
 }
 
 /**
- * Initialise the GitHub updater in admin context.
+ * Initialise the GitHub updater in every context. WordPress's twice-daily update check runs
+ * outside wp-admin, so an admin-only updater never saw it. The updater only adds hooks; they
+ * do work only during an update check.
  */
 function init_github_updater(): void {
-    if (is_admin()) {
-        \GPBeaverIntegration\Updater\GitHubUpdater::init(GPBI_FILE);
-    }
+    \GPBeaverIntegration\Updater\GitHubUpdater::init(GPBI_FILE);
 }
 
 /**

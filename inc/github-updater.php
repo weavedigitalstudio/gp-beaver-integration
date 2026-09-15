@@ -35,6 +35,7 @@ final class GitHubUpdater {
         add_filter('pre_set_site_transient_update_plugins', [$this, 'check_update']);
         add_filter('plugins_api', [$this, 'plugin_info'], 20, 3);
         add_filter('upgrader_post_install', [$this, 'after_install'], 10, 3);
+        add_action('load-update-core.php', [$this, 'maybe_clear_cache'], 9); // before core's own check on that screen
     }
 
     public static function init(string $file): self {
@@ -44,11 +45,30 @@ final class GitHubUpdater {
         return self::$instance;
     }
 
+    /**
+     * Header data for this plugin, in every context. WordPress's twice-daily update check runs
+     * outside wp-admin, and an admin-only lookup made that check skip this plugin, so an update
+     * only appeared once someone opened the Plugins or Updates screen.
+     */
     private function get_plugin_data(): ?array {
-        if ($this->plugin === null && is_admin() && function_exists('get_plugin_data')) {
-            $this->plugin = get_plugin_data($this->file);
+        if ($this->plugin === null) {
+            if (!function_exists('get_plugin_data')) {
+                require_once ABSPATH . 'wp-admin/includes/plugin.php';
+            }
+            $this->plugin = get_plugin_data($this->file, false, false);
         }
         return $this->plugin;
+    }
+
+    /**
+     * "Check again" on Dashboard > Updates asks GitHub afresh instead of reusing the cached
+     * release for up to CACHE_DURATION hours.
+     */
+    public function maybe_clear_cache(): void {
+        if (!empty($_GET['force-check']) && current_user_can('update_plugins')) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            delete_transient(self::CACHE_KEY);
+            $this->github_response = null;
+        }
     }
 
     private function normalize_version(string $version): string {
