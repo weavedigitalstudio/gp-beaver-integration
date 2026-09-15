@@ -17,6 +17,7 @@ function on_activation(): void {
         deactivate_plugins(plugin_basename(GPBI_FILE));
         $missing = !$is_generatepress ? 'GeneratePress theme' : 'Beaver Builder';
         wp_die(
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $missing is one of two literals set on the line above.
             "This plugin requires both GeneratePress theme and Beaver Builder to be installed and active. Missing: {$missing}",
             'Plugin Activation Error',
             ['back_link' => true],
@@ -95,7 +96,7 @@ function inject_iris_palette(): void {
     <script>
     (function($) {
         if (!$ || !$.wp || !$.wp.wpColorPicker) return;
-        var palette = <?php echo $palette_json; ?>;
+        var palette = <?php echo $palette_json; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_json_encode() output. ?>;
 
         // Set default palette for all future pickers.
         $.wp.wpColorPicker.prototype.options.palettes = palette;

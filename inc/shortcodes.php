@@ -128,6 +128,7 @@ function render_color_grid(array|string $atts = []): string {
             $text_color  = readable_text_color($hex);
             $white_class = needs_light_border($hex) ? ' has-light-bg' : '';
 
+            // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped -- every argument is escaped or computed above: esc_html label, esc_attr hex, sanitize_title var name, a computed colour and a literal class.
             printf(
                 '<article class="gp-color-box%5$s" style="background-color: var(%1$s)">
                     <div class="gp-color-info-alt" style="color: %4$s">
@@ -141,6 +142,7 @@ function render_color_grid(array|string $atts = []): string {
                 $text_color,
                 $white_class,
             );
+            // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
         }
     } else {
         echo '<p>No global colours found in GeneratePress Customizer colour settings.</p>';

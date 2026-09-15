@@ -505,7 +505,7 @@ function output_palette_restriction_css(): void {
         ';
     }
 
-    echo '<style id="gpbi-color-restrict">' . $css . '</style>';
+    echo '<style id="gpbi-color-restrict">' . $css . '</style>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Static CSS selectors written in this file.
 }
 
 // --- Debug helper ------------------------------------------------------------
